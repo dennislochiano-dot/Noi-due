@@ -107,16 +107,17 @@
     // Login anonimo: nessuna schermata di accesso per voi due, ma le
     // regole di sicurezza di Firestore possono comunque richiedere
     // "utente autenticato" per bloccare scritture a caso da internet.
-    signInAnonymously(auth)
-      .then(() => {
-        window.dispatchEvent(new Event("storage-ready"));
-      })
-      .catch((e) => {
-        console.error("Errore di autenticazione Firebase:", e);
-        // Anche in caso di errore, lasciamo partire l'app: le singole
-        // chiamate falliranno con grazia grazie ai try/catch interni.
-        window.dispatchEvent(new Event("storage-ready"));
-      });
+    window.storageReady = false;
+    function markReady() {
+      window.storageReady = true;
+      window.dispatchEvent(new Event("storage-ready"));
+    }
+    signInAnonymously(auth).then(markReady).catch((e) => {
+      console.error("Errore di autenticazione Firebase:", e);
+      // Anche in caso di errore, lasciamo partire l'app: le singole
+      // chiamate falliranno con grazia grazie ai try/catch interni.
+      markReady();
+    });
   </script>
 
 
@@ -1775,13 +1776,23 @@ function RelationshipTracker() {
   // Aspetta che Firebase/l'autenticazione anonima siano pronti,
   // poi monta l'app — stesso identico componente di prima.
   function Boot() {
-    const [ready, setReady] = useState(false);
+    const [ready, setReady] = useState(!!window.storageReady);
     useEffect(() => {
+      if (window.storageReady) {
+        setReady(true);
+        return;
+      }
       const onReady = () => setReady(true);
       window.addEventListener("storage-ready", onReady, { once: true });
       return () => window.removeEventListener("storage-ready", onReady);
     }, []);
-    if (!ready) return null;
+    if (!ready) {
+      return (
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FBF9F6", color: "#A29B90", fontFamily: "-apple-system, sans-serif", fontSize: 14 }}>
+          Un attimo…
+        </div>
+      );
+    }
     return <RelationshipTracker />;
   }
 
