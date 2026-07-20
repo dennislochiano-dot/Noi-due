@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Noi due</title>
 
-<!-- Rende l'app installabile sulla home screen di iOS -->
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Noi due" />
@@ -16,21 +15,15 @@
   #root { min-height: 100vh; }
 </style>
 
-<!-- React (build UMD, pronta all'uso senza npm) -->
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<!-- Babel Standalone: trasforma il JSX direttamente nel browser -->
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#FBF9F6;color:#A29B90;font-family:-apple-system,sans-serif;font-size:14px">Un attimo…</div>
+</div>
 
   <script type="module">
-    // ============================================================
-    // INCOLLA QUI LA TUA CONFIGURAZIONE FIREBASE
-    // (Console Firebase → icona ingranaggio → Impostazioni progetto
-    //  → "Le tue app" → app web → copia l'oggetto firebaseConfig)
-    // ============================================================
     const firebaseConfig = {
       apiKey: "AIzaSyC8xzwIgMb7WAZaJGvOck8wnYrDmligbM0",
       authDomain: "noi-due-82e5f.firebaseapp.com",
@@ -39,312 +32,261 @@
       messagingSenderId: "169225194522",
       appId: "1:169225194522:web:1ac00eb41e53e18d4815a3",
     };
-
-    // Identificativo fisso della vostra coppia: scope dei dati su Firestore.
-    // Cambialo con qualcosa a te noto se vuoi un minimo di offuscamento in più.
     const COUPLE_ID = "dedi-e-prisci";
 
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import {
-      getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs,
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    try {
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+      const { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      const { getAuth, signInAnonymously } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+      const dataRef = (key) => doc(db, "couples", COUPLE_ID, "data", key);
 
-    function dataRef(key) {
-      return doc(db, "couples", COUPLE_ID, "data", key);
+      window.storage = {
+        async get(key, shared) {
+          try { const s = await getDoc(dataRef(key)); return s.exists() ? { key, value: s.data().value, shared: !!shared } : null; }
+          catch (e) { return null; }
+        },
+        async set(key, value, shared) {
+          try { await setDoc(dataRef(key), { value, updatedAt: Date.now() }); return { key, value, shared: !!shared }; }
+          catch (e) { return null; }
+        },
+        async delete(key, shared) {
+          try { await deleteDoc(dataRef(key)); return { key, deleted: true, shared: !!shared }; }
+          catch (e) { return null; }
+        },
+        async list(prefix, shared) {
+          try {
+            const snap = await getDocs(collection(db, "couples", COUPLE_ID, "data"));
+            const keys = []; snap.forEach((d) => { if (!prefix || d.id.startsWith(prefix)) keys.push(d.id); });
+            return { keys, prefix, shared: !!shared };
+          } catch (e) { return null; }
+        },
+      };
+
+      try { await signInAnonymously(auth); } catch (e) { console.error("Auth Firebase:", e); }
+      window.__firebaseReady = true;
+      if (window.__startApp) window.__startApp();
+    } catch (err) {
+      document.getElementById("root").innerHTML =
+        '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:#8C6B5C;font-family:-apple-system,sans-serif;font-size:15px;line-height:1.5">Impossibile connettersi a Firebase.<br>Controlla la connessione a internet e ricarica.</div>';
+      console.error("Errore caricamento Firebase:", err);
     }
-
-    // ------------------------------------------------------------
-    // Adattatore: stessa identica forma di window.storage che l'app
-    // già usa (get/set/delete/list), ma dietro le quinte parla con
-    // Firestore invece che con lo storage dell'artifact.
-    // Il codice dell'app (safeGet/safeSet/resetAllData) non cambia.
-    // ------------------------------------------------------------
-    window.storage = {
-      async get(key, shared) {
-        try {
-          const snap = await getDoc(dataRef(key));
-          if (!snap.exists()) return null;
-          return { key, value: snap.data().value, shared: !!shared };
-        } catch (e) {
-          return null;
-        }
-      },
-      async set(key, value, shared) {
-        try {
-          await setDoc(dataRef(key), { value, updatedAt: Date.now() });
-          return { key, value, shared: !!shared };
-        } catch (e) {
-          return null;
-        }
-      },
-      async delete(key, shared) {
-        try {
-          await deleteDoc(dataRef(key));
-          return { key, deleted: true, shared: !!shared };
-        } catch (e) {
-          return null;
-        }
-      },
-      async list(prefix, shared) {
-        try {
-          const snap = await getDocs(collection(db, "couples", COUPLE_ID, "data"));
-          const keys = [];
-          snap.forEach((d) => {
-            if (!prefix || d.id.startsWith(prefix)) keys.push(d.id);
-          });
-          return { keys, prefix, shared: !!shared };
-        } catch (e) {
-          return null;
-        }
-      },
-    };
-
-    // Login anonimo: nessuna schermata di accesso per voi due, ma le
-    // regole di sicurezza di Firestore possono comunque richiedere
-    // "utente autenticato" per bloccare scritture a caso da internet.
-    window.storageReady = false;
-    function markReady() {
-      window.storageReady = true;
-      window.dispatchEvent(new Event("storage-ready"));
-    }
-    signInAnonymously(auth).then(markReady).catch((e) => {
-      console.error("Errore di autenticazione Firebase:", e);
-      // Anche in caso di errore, lasciamo partire l'app: le singole
-      // chiamate falliranno con grazia grazie ai try/catch interni.
-      markReady();
-    });
   </script>
 
+  <script>
+  (function () {
+    var React = window.React, ReactDOM = window.ReactDOM;
 
-<script type="text/babel" data-presets="react">
-  const { useState, useEffect, useCallback, useRef } = React;
-
-
-// ============ constants ============
+const {
+  useState,
+  useEffect,
+  useCallback,
+  useRef
+} = React;
 const PARTNERS = ["Dedi", "Prisci"];
-const PARTNER_COLORS = { Dedi: "#F0B7A4", Prisci: "#A9C3A1" };
-const PARTNER_GENDER = { Dedi: "m", Prisci: "f" }; // for grammatical agreement
-const PARTNER_PRONOUN = { Dedi: "lui", Prisci: "lei" }; // pronoun referring to that partner
-
+const PARTNER_COLORS = {
+  Dedi: "#F0B7A4",
+  Prisci: "#A9C3A1"
+};
+const PARTNER_GENDER = {
+  Dedi: "m",
+  Prisci: "f"
+};
+const PARTNER_PRONOUN = {
+  Dedi: "lui",
+  Prisci: "lei"
+};
 const EMO_COLORS = ["#E89B8B", "#F0BE98", "#EFD9A8", "#C2D4AE", "#9FC79B"];
 const STATE_WORDS = ["In difficoltà", "Un po' giù", "Neutri", "Sereni", "Felici"];
-
 const SCALE = {
   mood: {
     question: "Come ti senti\noggi?",
-    words: ["Malissimo", "Giù", "Così così", "Bene", "Alla grande"],
+    words: ["Malissimo", "Giù", "Così così", "Bene", "Alla grande"]
   },
   connection: {
     question: "Quanto vi siete\nsentiti vicini?",
-    words: ["Distanti", "Un po' lontani", "Nella media", "Vicini", "Vicinissimi"],
+    words: ["Distanti", "Un po' lontani", "Nella media", "Vicini", "Vicinissimi"]
   },
   communication: {
     question: "Com'è andata la vostra\ncomunicazione oggi?",
-    words: ["Difficile", "Confusa", "Nella media", "Buona", "Ottima"],
+    words: ["Difficile", "Confusa", "Nella media", "Buona", "Ottima"]
   },
   appreciation: {
     question: "Quanto ti sei sentito\napprezzato oggi?",
     words: ["Invisibile", "Poco visto", "Nella media", "Apprezzato", "Molto apprezzato"],
     genderVariant: true,
-    genderTarget: "self",
+    genderTarget: "self"
   },
   given: {
     question: "Quanto hai fatto sentire\napprezzato il partner oggi?",
     words: ["Trascurato", "Poco apprezzato", "Nella media", "Apprezzato", "Molto apprezzato"],
     genderVariant: true,
-    genderTarget: "other",
+    genderTarget: "other"
   },
   stress: {
     question: "Quanto stress\nhai addosso?",
     words: ["Sereno", "Tranquillo", "Un po' teso", "Sotto pressione", "Molto teso"],
     inverted: true,
     genderVariant: true,
-    genderTarget: "self",
-  },
+    genderTarget: "self"
+  }
 };
 const STEPS = ["mood", "stress", "connection", "communication", "appreciation", "given"];
-
-// dimensions selectable in the trend chart
-const DIM_OPTIONS = [
-  { key: "value", label: "Serenità", color: "#B9A7E0" },
-  { key: "avgMood", label: "Umore", color: "#F0BE98" },
-  { key: "avgStress", label: "Stress", color: "#E89B8B", inverted: true },
-  { key: "avgConnection", label: "Connessione", color: "#F0B7A4" },
-  { key: "avgCommunication", label: "Comunicazione", color: "#AFC8E0" },
-  { key: "avgAppreciation", label: "Ricevuto", color: "#C2D4AE" },
-  { key: "avgGiven", label: "Dato", color: "#9FC79B" },
-];
-
-// private reflection question (every 3 days, tied to the check-in note — stays fully private)
-const REFLECTION_QUESTIONS = [
-  "Cosa ti ha fatto sorridere oggi?",
-  "Di cosa vorresti parlare di più questa settimana?",
-  "Qual è stato il momento migliore della giornata?",
-  "C'è qualcosa che non hai detto e vorresti dire?",
-  "Cosa apprezzi di più del vostro rapporto in questo periodo?",
-  "Cosa ti farebbe sentire più supportatə in questi giorni?",
-  "Quale piccolo gesto ti ha scaldato il cuore di recente?",
-  "Cosa vorresti fare insieme, presto?",
-  "Cosa ti pesa in questo momento, anche fuori dalla coppia?",
-  "Per cosa sei gratə oggi?",
-];
-
-// shared daily question — every day, blind until both answer, then revealed
+const DIM_OPTIONS = [{
+  key: "value",
+  label: "Serenità",
+  color: "#B9A7E0"
+}, {
+  key: "avgMood",
+  label: "Umore",
+  color: "#F0BE98"
+}, {
+  key: "avgStress",
+  label: "Stress",
+  color: "#E89B8B",
+  inverted: true
+}, {
+  key: "avgConnection",
+  label: "Connessione",
+  color: "#F0B7A4"
+}, {
+  key: "avgCommunication",
+  label: "Comunicazione",
+  color: "#AFC8E0"
+}, {
+  key: "avgAppreciation",
+  label: "Ricevuto",
+  color: "#C2D4AE"
+}, {
+  key: "avgGiven",
+  label: "Dato",
+  color: "#9FC79B"
+}];
+const REFLECTION_QUESTIONS = ["Cosa ti ha fatto sorridere oggi?", "Di cosa vorresti parlare di più questa settimana?", "Qual è stato il momento migliore della giornata?", "C'è qualcosa che non hai detto e vorresti dire?", "Cosa apprezzi di più del vostro rapporto in questo periodo?", "Cosa ti farebbe sentire più supportatə in questi giorni?", "Quale piccolo gesto ti ha scaldato il cuore di recente?", "Cosa vorresti fare insieme, presto?", "Cosa ti pesa in questo momento, anche fuori dalla coppia?", "Per cosa sei gratə oggi?"];
 const SHARED_CATEGORIES = {
   connessione: {
     emoji: "❤️",
-    items: [
-      "Oggi ti sei sentito davvero compreso dal tuo partner?",
-      "Ti sei sentito importante per lui/lei oggi?",
-      "Hai percepito affetto spontaneo?",
-      "Ti sei sentito ascoltato senza essere giudicato?",
-      "Oggi ti sei sentito vicino o distante emotivamente?",
-      "Quanto hai sentito il desiderio di condividere la tua giornata?",
-      "Ti sei sentito accolto quando hai espresso un'emozione?",
-      "Quanto ti sei sentito \"a casa\" con il tuo partner?",
-    ],
+    items: ["Oggi ti sei sentito davvero compreso dal tuo partner?", "Ti sei sentito importante per lui/lei oggi?", "Hai percepito affetto spontaneo?", "Ti sei sentito ascoltato senza essere giudicato?", "Oggi ti sei sentito vicino o distante emotivamente?", "Quanto hai sentito il desiderio di condividere la tua giornata?", "Ti sei sentito accolto quando hai espresso un'emozione?", "Quanto ti sei sentito \"a casa\" con il tuo partner?"]
   },
   comunicazione: {
     emoji: "💬",
-    items: [
-      "Hai detto qualcosa che avresti preferito esprimere diversamente?",
-      "C'è qualcosa che non hai detto per paura della reazione?",
-      "Quanto è stata sincera la vostra comunicazione oggi?",
-      "Hai ascoltato più di quanto hai parlato?",
-      "Vi siete capiti davvero o avete semplicemente concluso la conversazione?",
-      "Oggi avete parlato di qualcosa che conta davvero?",
-      "Quanto ti sei sentito libero di essere te stesso?",
-    ],
+    items: ["Hai detto qualcosa che avresti preferito esprimere diversamente?", "C'è qualcosa che non hai detto per paura della reazione?", "Quanto è stata sincera la vostra comunicazione oggi?", "Hai ascoltato più di quanto hai parlato?", "Vi siete capiti davvero o avete semplicemente concluso la conversazione?", "Oggi avete parlato di qualcosa che conta davvero?", "Quanto ti sei sentito libero di essere te stesso?"]
   },
   benessere: {
     emoji: "😊",
-    items: [
-      "Ti sei sentito emotivamente sereno oggi?",
-      "Hai avuto energie positive?",
-      "Quanto il lavoro ha influenzato il tuo umore?",
-      "Ti sei preso cura di te oggi?",
-      "Hai avuto momenti di gratitudine?",
-    ],
+    items: ["Ti sei sentito emotivamente sereno oggi?", "Hai avuto energie positive?", "Quanto il lavoro ha influenzato il tuo umore?", "Ti sei preso cura di te oggi?", "Hai avuto momenti di gratitudine?"]
   },
   relazione: {
     emoji: "❤️",
-    items: [
-      "Quanto ti sei sentito amato oggi?",
-      "Quanto hai fatto sentire amato il tuo partner?",
-      "Quanto vi siete divertiti insieme?",
-      "Quanto avete riso oggi?",
-      "Avete trascorso tempo di qualità?",
-      "Ti sei sentito apprezzato?",
-      "Hai fatto qualcosa per migliorare la giornata del partner?",
-    ],
+    items: ["Quanto ti sei sentito amato oggi?", "Quanto hai fatto sentire amato il tuo partner?", "Quanto vi siete divertiti insieme?", "Quanto avete riso oggi?", "Avete trascorso tempo di qualità?", "Ti sei sentito apprezzato?", "Hai fatto qualcosa per migliorare la giornata del partner?"]
   },
   crescita: {
     emoji: "🌱",
-    items: [
-      "Oggi la vostra relazione è migliorata o peggiorata?",
-      "C'è stato un momento che vorresti rivivere?",
-      "C'è qualcosa che vorresti fare meglio domani?",
-      "Oggi hai imparato qualcosa sul tuo partner?",
-      "Hai scoperto qualcosa di nuovo sulla vostra relazione?",
-    ],
+    items: ["Oggi la vostra relazione è migliorata o peggiorata?", "C'è stato un momento che vorresti rivivere?", "C'è qualcosa che vorresti fare meglio domani?", "Oggi hai imparato qualcosa sul tuo partner?", "Hai scoperto qualcosa di nuovo sulla vostra relazione?"]
   },
   fiducia: {
     emoji: "🤝",
-    items: [
-      "Ti sei sentito al sicuro emotivamente?",
-      "Hai avuto dubbi che ti hanno fatto stare male?",
-      "Hai sentito fiducia reciproca?",
-      "Hai percepito sincerità?",
-    ],
+    items: ["Ti sei sentito al sicuro emotivamente?", "Hai avuto dubbi che ti hanno fatto stare male?", "Hai sentito fiducia reciproca?", "Hai percepito sincerità?"]
   },
   intimita: {
     emoji: "🔥",
-    items: [
-      "Ti sei sentito desiderato?",
-      "Hai percepito complicità?",
-      "Ti sei sentito vicino anche fisicamente?",
-      "Quanto vi siete cercati spontaneamente?",
-    ],
+    items: ["Ti sei sentito desiderato?", "Hai percepito complicità?", "Ti sei sentito vicino anche fisicamente?", "Quanto vi siete cercati spontaneamente?"]
   },
   conflitti: {
     emoji: "😌",
-    items: [
-      "C'è stato un momento di tensione?",
-      "Quanto velocemente avete risolto un problema?",
-      "Ti senti ancora infastidito per qualcosa?",
-      "Hai chiesto scusa quando era necessario?",
-      "Hai perdonato facilmente?",
-    ],
+    items: ["C'è stato un momento di tensione?", "Quanto velocemente avete risolto un problema?", "Ti senti ancora infastidito per qualcosa?", "Hai chiesto scusa quando era necessario?", "Hai perdonato facilmente?"]
   },
   gratitudine: {
     emoji: "🌞",
-    items: [
-      "Qual è stata la cosa più bella che il tuo partner ha fatto oggi?",
-      "Di cosa sei grato oggi?",
-      "Cosa hai apprezzato di più?",
-      "Quale gesto ti ha fatto sorridere?",
-    ],
+    items: ["Qual è stata la cosa più bella che il tuo partner ha fatto oggi?", "Di cosa sei grato oggi?", "Cosa hai apprezzato di più?", "Quale gesto ti ha fatto sorridere?"]
   },
   riflessione: {
     emoji: "💭",
-    items: [
-      "Se oggi fosse stato il vostro ultimo giorno insieme, cambieresti qualcosa?",
-      "Hai dato oggi per scontato il tuo partner?",
-      "Hai dedicato abbastanza attenzione alla vostra relazione?",
-      "C'è qualcosa che vorresti dire ma non hai detto?",
-      "Oggi hai scelto l'amore oppure la comodità?",
-    ],
-  },
+    items: ["Se oggi fosse stato il vostro ultimo giorno insieme, cambieresti qualcosa?", "Hai dato oggi per scontato il tuo partner?", "Hai dedicato abbastanza attenzione alla vostra relazione?", "C'è qualcosa che vorresti dire ma non hai detto?", "Oggi hai scelto l'amore oppure la comodità?"]
+  }
 };
-
 function seededShuffle(arr, seed) {
   const a = [...arr];
   let s = seed;
   for (let i = a.length - 1; i > 0; i--) {
     s = (s * 9301 + 49297) % 233280;
-    const j = Math.floor((s / 233280) * (i + 1));
+    const j = Math.floor(s / 233280 * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
 }
 function flattenCategories(keys) {
   const out = [];
-  keys.forEach((k) => {
-    SHARED_CATEGORIES[k].items.forEach((text) => out.push({ text, cat: k, emoji: SHARED_CATEGORIES[k].emoji }));
+  keys.forEach(k => {
+    SHARED_CATEGORIES[k].items.forEach(text => out.push({
+      text,
+      cat: k,
+      emoji: SHARED_CATEGORIES[k].emoji
+    }));
   });
   return out;
 }
-const BASE_KEYS = Object.keys(SHARED_CATEGORIES).filter((k) => k !== "intimita");
+const BASE_KEYS = Object.keys(SHARED_CATEGORIES).filter(k => k !== "intimita");
 const SHARED_POOL_BASE = seededShuffle(flattenCategories(BASE_KEYS), 42);
 const SHARED_POOL_FULL = seededShuffle(flattenCategories(Object.keys(SHARED_CATEGORIES)), 42);
 function sharedQuestionForDate(dateStr, intimacyEnabled) {
   const pool = intimacyEnabled ? SHARED_POOL_FULL : SHARED_POOL_BASE;
   return pool[dayIndex(dateStr) % pool.length];
 }
-
-const BADGES = [
-  { id: "first-together", emoji: "🤝", title: "Il primo giorno insieme", check: (h) => h.length >= 1 },
-  { id: "week", emoji: "🔥", title: "Una settimana di fila", check: (h, n, s) => s >= 7 },
-  { id: "twoweeks", emoji: "💪", title: "Due settimane di fila", check: (h, n, s) => s >= 14 },
-  { id: "month", emoji: "🏆", title: "Un mese di fila", check: (h, n, s) => s >= 30 },
-  { id: "ten-days", emoji: "💛", title: "10 giornate insieme", check: (h) => h.length >= 10 },
-  { id: "thirty-days", emoji: "🌟", title: "30 giornate insieme", check: (h) => h.length >= 30 },
-  { id: "hundred-days", emoji: "🌈", title: "100 giornate insieme", check: (h) => h.length >= 100 },
-  { id: "open-heart-5", emoji: "💬", title: "5 pensieri scritti", check: (h, n) => n >= 5 },
-  { id: "open-heart-15", emoji: "📔", title: "15 pensieri scritti", check: (h, n) => n >= 15 },
-];
-
-// ============ helpers ============
+const BADGES = [{
+  id: "first-together",
+  emoji: "🤝",
+  title: "Il primo giorno insieme",
+  check: h => h.length >= 1
+}, {
+  id: "week",
+  emoji: "🔥",
+  title: "Una settimana di fila",
+  check: (h, n, s) => s >= 7
+}, {
+  id: "twoweeks",
+  emoji: "💪",
+  title: "Due settimane di fila",
+  check: (h, n, s) => s >= 14
+}, {
+  id: "month",
+  emoji: "🏆",
+  title: "Un mese di fila",
+  check: (h, n, s) => s >= 30
+}, {
+  id: "ten-days",
+  emoji: "💛",
+  title: "10 giornate insieme",
+  check: h => h.length >= 10
+}, {
+  id: "thirty-days",
+  emoji: "🌟",
+  title: "30 giornate insieme",
+  check: h => h.length >= 30
+}, {
+  id: "hundred-days",
+  emoji: "🌈",
+  title: "100 giornate insieme",
+  check: h => h.length >= 100
+}, {
+  id: "open-heart-5",
+  emoji: "💬",
+  title: "5 pensieri scritti",
+  check: (h, n) => n >= 5
+}, {
+  id: "open-heart-15",
+  emoji: "📔",
+  title: "15 pensieri scritti",
+  check: (h, n) => n >= 15
+}];
 function todayStr(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 function other(name) {
-  return PARTNERS.find((p) => p !== name);
+  return PARTNERS.find(p => p !== name);
 }
 function feminize(word) {
   return word.endsWith("o") ? word.slice(0, -1) + "a" : word;
@@ -353,7 +295,10 @@ function resolveSchwa(text, gender) {
   return text.replace(/ə/g, gender === "f" ? "a" : "o");
 }
 function formatShort(dateStr) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("it-IT", {
+    day: "numeric",
+    month: "short"
+  });
 }
 function dayIndex(dateStr) {
   return Math.floor(new Date(dateStr + "T00:00:00").getTime() / 86400000);
@@ -374,7 +319,7 @@ function monthKey(d = new Date()) {
 }
 const MONTH_NAMES = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 function computeStreak(history) {
-  const set = new Set(history.map((h) => h.date));
+  const set = new Set(history.map(h => h.date));
   let cursor = new Date();
   if (!set.has(todayStr(cursor))) cursor.setDate(cursor.getDate() - 1);
   let streak = 0;
@@ -385,27 +330,37 @@ function computeStreak(history) {
   return streak;
 }
 function unlockedBadgeIds(history, notesCount, streak) {
-  return BADGES.filter((b) => b.check(history, notesCount, streak)).map((b) => b.id);
+  return BADGES.filter(b => b.check(history, notesCount, streak)).map(b => b.id);
 }
-// The couple's state is a rolling average of the most recent valid days,
-// not a single day's snapshot — so one bad day doesn't swing the whole picture.
 const STATE_WINDOW = 5;
 function rollingState(history) {
   if (!history.length) return null;
   const recent = history.slice(-STATE_WINDOW);
   const avg = recent.reduce((s, e) => s + e.value, 0) / recent.length;
-  return { avg, days: recent.length };
+  return {
+    avg,
+    days: recent.length
+  };
 }
-
-// Weekly numeric summary: last 7 calendar days vs the 7 before
-const WEEK_DIMS = [
-  { key: "avgMood", label: "Umore" },
-  { key: "avgConnection", label: "Connessione" },
-  { key: "avgCommunication", label: "Comunicazione" },
-  { key: "avgAppreciation", label: "Apprezzamento ricevuto" },
-  { key: "avgGiven", label: "Apprezzamento dato" },
-  { key: "calm", label: "Calma" },
-];
+const WEEK_DIMS = [{
+  key: "avgMood",
+  label: "Umore"
+}, {
+  key: "avgConnection",
+  label: "Connessione"
+}, {
+  key: "avgCommunication",
+  label: "Comunicazione"
+}, {
+  key: "avgAppreciation",
+  label: "Apprezzamento ricevuto"
+}, {
+  key: "avgGiven",
+  label: "Apprezzamento dato"
+}, {
+  key: "calm",
+  label: "Calma"
+}];
 function daysAgoStr(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -414,31 +369,40 @@ function daysAgoStr(n) {
 function weeklySummary(history) {
   const curFrom = daysAgoStr(6);
   const prevFrom = daysAgoStr(13);
-  const cur = history.filter((h) => h.date >= curFrom);
-  const prev = history.filter((h) => h.date >= prevFrom && h.date < curFrom);
+  const cur = history.filter(h => h.date >= curFrom);
+  const prev = history.filter(h => h.date >= prevFrom && h.date < curFrom);
   if (cur.length < 2) return null;
-  const dimAvg = (arr, key) =>
-    arr.reduce((s, e) => {
-      if (key === "calm") return s + (6 - (e.avgStress ?? 3));
-      if (key === "value") return s + (e.value ?? 3);
-      return s + (e[key] ?? 3);
-    }, 0) / arr.length;
-  const dims = WEEK_DIMS.map((d) => ({ ...d, avg: dimAvg(cur, d.key) }));
-  const strongest = dims.reduce((a, b) => (b.avg > a.avg ? b : a));
-  const weakest = dims.reduce((a, b) => (b.avg < a.avg ? b : a));
+  const dimAvg = (arr, key) => arr.reduce((s, e) => {
+    if (key === "calm") return s + (6 - (e.avgStress ?? 3));
+    if (key === "value") return s + (e.value ?? 3);
+    return s + (e[key] ?? 3);
+  }, 0) / arr.length;
+  const dims = WEEK_DIMS.map(d => ({
+    ...d,
+    avg: dimAvg(cur, d.key)
+  }));
+  const strongest = dims.reduce((a, b) => b.avg > a.avg ? b : a);
+  const weakest = dims.reduce((a, b) => b.avg < a.avg ? b : a);
   let direction = null;
   if (prev.length >= 2) {
     const diff = dimAvg(cur, "value") - dimAvg(prev, "value");
     direction = diff > 0.15 ? "up" : diff < -0.15 ? "down" : "flat";
   }
-  return { completed: cur.length, strongest, weakest, direction };
+  return {
+    completed: cur.length,
+    strongest,
+    weakest,
+    direction
+  };
 }
 function periodComparison(history, period) {
   const current = history.slice(-period);
   const previous = history.slice(-2 * period, -period);
   if (previous.length < 2 || current.length < 2) return null;
-  const avg = (a) => a.reduce((s, e) => s + e.value, 0) / a.length;
-  return { diff: avg(current) - avg(previous) };
+  const avg = a => a.reduce((s, e) => s + e.value, 0) / a.length;
+  return {
+    diff: avg(current) - avg(previous)
+  };
 }
 function valueToLevel(v) {
   return Math.min(5, Math.max(1, Math.round(v)));
@@ -467,7 +431,6 @@ function presenceLabel(ts, gender) {
   if (todayStr(d) === todayStr(y)) return `${attivo} ieri`;
   return null;
 }
-
 async function safeGet(key, shared) {
   try {
     const res = await window.storage.get(key, shared);
@@ -504,123 +467,231 @@ async function resetAllData() {
     } catch {}
   }
 }
-
-// ============ the creature ============
-function Fuzzy({ color, level, size = 190, id = "f", float = true, breathe = false }) {
+function Fuzzy({
+  color,
+  level,
+  size = 190,
+  id = "f",
+  float = true,
+  breathe = false
+}) {
   const mouths = {
     1: "M 78 132 Q 100 114 122 132",
     2: "M 80 128 Q 100 120 120 128",
     3: "M 82 126 L 118 126",
     4: "M 80 122 Q 100 132 120 122",
-    5: "M 76 118 Q 100 138 124 118",
+    5: "M 76 118 Q 100 138 124 118"
   };
   const angry = level === 1;
   const sad = level === 2;
-  return (
-    <svg
-      viewBox="0 0 200 200"
-      width={size}
-      height={size}
-      className={`${float ? "rt-float" : ""} ${breathe ? "rt-breathe" : ""}`}
-      style={{ overflow: "visible", display: "block", margin: "0 auto" }}
-      aria-hidden="true"
-    >
-      <defs>
-        <filter id={`fur-${id}`} x="-30%" y="-30%" width="160%" height="160%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="3" seed="7" result="noise" />
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="13" />
-        </filter>
-        <radialGradient id={`body-${id}`} cx="38%" cy="30%" r="78%">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.55" />
-          <stop offset="45%" stopColor={color} />
-          <stop offset="100%" stopColor={color} stopOpacity="0.88" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="100" cy="183" rx="48" ry="8" fill="rgba(90,80,70,0.10)" />
-      <g filter={`url(#fur-${id})`}>
-        <circle cx="100" cy="100" r="72" fill={`url(#body-${id})`} />
-        <circle cx="100" cy="100" r="65" fill={color} opacity="0.5" />
-      </g>
-      <g>
-        {angry && (
-          <>
-            <path d="M 66 74 L 90 84" stroke="#4A443E" strokeWidth="5" strokeLinecap="round" />
-            <path d="M 134 74 L 110 84" stroke="#4A443E" strokeWidth="5" strokeLinecap="round" />
-          </>
-        )}
-        {sad && (
-          <>
-            <path d="M 68 80 Q 78 76 90 82" stroke="#4A443E" strokeWidth="4" strokeLinecap="round" fill="none" />
-            <path d="M 132 80 Q 122 76 110 82" stroke="#4A443E" strokeWidth="4" strokeLinecap="round" fill="none" />
-          </>
-        )}
-        <g className="rt-blink">
-          <ellipse cx="82" cy="97" rx="7" ry={level >= 4 ? 8.5 : 7} fill="#3B3630" />
-          <ellipse cx="118" cy="97" rx="7" ry={level >= 4 ? 8.5 : 7} fill="#3B3630" />
-        </g>
-        <circle cx="84.5" cy="94" r="2.3" fill="#fff" opacity="0.9" />
-        <circle cx="120.5" cy="94" r="2.3" fill="#fff" opacity="0.9" />
-        {level >= 4 && (
-          <>
-            <ellipse cx="70" cy="112" rx="8" ry="5" fill="rgba(255,140,120,0.30)" />
-            <ellipse cx="130" cy="112" rx="8" ry="5" fill="rgba(255,140,120,0.30)" />
-          </>
-        )}
-        <path d={mouths[level]} stroke="#4A443E" strokeWidth="5.5" strokeLinecap="round" fill="none" />
-      </g>
-    </svg>
-  );
+  return React.createElement("svg", {
+    viewBox: "0 0 200 200",
+    width: size,
+    height: size,
+    className: `${float ? "rt-float" : ""} ${breathe ? "rt-breathe" : ""}`,
+    style: {
+      overflow: "visible",
+      display: "block",
+      margin: "0 auto"
+    },
+    "aria-hidden": "true"
+  }, React.createElement("defs", null, React.createElement("filter", {
+    id: `fur-${id}`,
+    x: "-30%",
+    y: "-30%",
+    width: "160%",
+    height: "160%"
+  }, React.createElement("feTurbulence", {
+    type: "fractalNoise",
+    baseFrequency: "0.09",
+    numOctaves: "3",
+    seed: "7",
+    result: "noise"
+  }), React.createElement("feDisplacementMap", {
+    in: "SourceGraphic",
+    in2: "noise",
+    scale: "13"
+  })), React.createElement("radialGradient", {
+    id: `body-${id}`,
+    cx: "38%",
+    cy: "30%",
+    r: "78%"
+  }, React.createElement("stop", {
+    offset: "0%",
+    stopColor: "#FFFFFF",
+    stopOpacity: "0.55"
+  }), React.createElement("stop", {
+    offset: "45%",
+    stopColor: color
+  }), React.createElement("stop", {
+    offset: "100%",
+    stopColor: color,
+    stopOpacity: "0.88"
+  }))), React.createElement("ellipse", {
+    cx: "100",
+    cy: "183",
+    rx: "48",
+    ry: "8",
+    fill: "rgba(90,80,70,0.10)"
+  }), React.createElement("g", {
+    filter: `url(#fur-${id})`
+  }, React.createElement("circle", {
+    cx: "100",
+    cy: "100",
+    r: "72",
+    fill: `url(#body-${id})`
+  }), React.createElement("circle", {
+    cx: "100",
+    cy: "100",
+    r: "65",
+    fill: color,
+    opacity: "0.5"
+  })), React.createElement("g", null, angry && React.createElement(React.Fragment, null, React.createElement("path", {
+    d: "M 66 74 L 90 84",
+    stroke: "#4A443E",
+    strokeWidth: "5",
+    strokeLinecap: "round"
+  }), React.createElement("path", {
+    d: "M 134 74 L 110 84",
+    stroke: "#4A443E",
+    strokeWidth: "5",
+    strokeLinecap: "round"
+  })), sad && React.createElement(React.Fragment, null, React.createElement("path", {
+    d: "M 68 80 Q 78 76 90 82",
+    stroke: "#4A443E",
+    strokeWidth: "4",
+    strokeLinecap: "round",
+    fill: "none"
+  }), React.createElement("path", {
+    d: "M 132 80 Q 122 76 110 82",
+    stroke: "#4A443E",
+    strokeWidth: "4",
+    strokeLinecap: "round",
+    fill: "none"
+  })), React.createElement("g", {
+    className: "rt-blink"
+  }, React.createElement("ellipse", {
+    cx: "82",
+    cy: "97",
+    rx: "7",
+    ry: level >= 4 ? 8.5 : 7,
+    fill: "#3B3630"
+  }), React.createElement("ellipse", {
+    cx: "118",
+    cy: "97",
+    rx: "7",
+    ry: level >= 4 ? 8.5 : 7,
+    fill: "#3B3630"
+  })), React.createElement("circle", {
+    cx: "84.5",
+    cy: "94",
+    r: "2.3",
+    fill: "#fff",
+    opacity: "0.9"
+  }), React.createElement("circle", {
+    cx: "120.5",
+    cy: "94",
+    r: "2.3",
+    fill: "#fff",
+    opacity: "0.9"
+  }), level >= 4 && React.createElement(React.Fragment, null, React.createElement("ellipse", {
+    cx: "70",
+    cy: "112",
+    rx: "8",
+    ry: "5",
+    fill: "rgba(255,140,120,0.30)"
+  }), React.createElement("ellipse", {
+    cx: "130",
+    cy: "112",
+    rx: "8",
+    ry: "5",
+    fill: "rgba(255,140,120,0.30)"
+  })), React.createElement("path", {
+    d: mouths[level],
+    stroke: "#4A443E",
+    strokeWidth: "5.5",
+    strokeLinecap: "round",
+    fill: "none"
+  })));
 }
-
-// ============ animated streak ring ============
-function StreakRing({ streak }) {
+function StreakRing({
+  streak
+}) {
   const target = streak < 7 ? 7 : streak < 14 ? 14 : streak < 30 ? 30 : Math.ceil((streak + 1) / 30) * 30;
   const pct = Math.min(1, streak / target);
   const r = 34;
   const c = 2 * Math.PI * r;
-  return (
-    <div style={{ position: "relative", width: 88, height: 88 }}>
-      <svg viewBox="0 0 88 88" width="88" height="88" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="44" cy="44" r={r} fill="none" stroke="rgba(74,68,62,0.07)" strokeWidth="7" />
-        <circle
-          cx="44"
-          cy="44"
-          r={r}
-          fill="none"
-          stroke="url(#ringGrad)"
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - pct)}
-          className="rt-ring"
-        />
-        <defs>
-          <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#F0B7A4" />
-            <stop offset="100%" stopColor="#C9B8E8" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5 }}>{streak}</span>
-        <span style={{ fontSize: 9, color: "#A29B90", marginTop: -2 }}>di {target}</span>
-      </div>
-    </div>
-  );
+  return React.createElement("div", {
+    style: {
+      position: "relative",
+      width: 88,
+      height: 88
+    }
+  }, React.createElement("svg", {
+    viewBox: "0 0 88 88",
+    width: "88",
+    height: "88",
+    style: {
+      transform: "rotate(-90deg)"
+    }
+  }, React.createElement("circle", {
+    cx: "44",
+    cy: "44",
+    r: r,
+    fill: "none",
+    stroke: "rgba(74,68,62,0.07)",
+    strokeWidth: "7"
+  }), React.createElement("circle", {
+    cx: "44",
+    cy: "44",
+    r: r,
+    fill: "none",
+    stroke: "url(#ringGrad)",
+    strokeWidth: "7",
+    strokeLinecap: "round",
+    strokeDasharray: c,
+    strokeDashoffset: c * (1 - pct),
+    className: "rt-ring"
+  }), React.createElement("defs", null, React.createElement("linearGradient", {
+    id: "ringGrad",
+    x1: "0",
+    y1: "0",
+    x2: "1",
+    y2: "1"
+  }, React.createElement("stop", {
+    offset: "0%",
+    stopColor: "#F0B7A4"
+  }), React.createElement("stop", {
+    offset: "100%",
+    stopColor: "#C9B8E8"
+  })))), React.createElement("div", {
+    style: {
+      position: "absolute",
+      inset: 0,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 24,
+      fontWeight: 700,
+      letterSpacing: -0.5
+    }
+  }, streak), React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: "#A29B90",
+      marginTop: -2
+    }
+  }, "di ", target)));
 }
-
-// ============ week strip ============
-function WeekStrip({ history, onSelect }) {
-  const byDate = Object.fromEntries(history.map((h) => [h.date, h]));
+function WeekStrip({
+  history,
+  onSelect
+}) {
+  const byDate = Object.fromEntries(history.map(h => [h.date, h]));
   const days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
@@ -628,63 +699,71 @@ function WeekStrip({ history, onSelect }) {
     const ds = todayStr(d);
     days.push({
       date: ds,
-      label: d.toLocaleDateString("it-IT", { weekday: "narrow" }),
+      label: d.toLocaleDateString("it-IT", {
+        weekday: "narrow"
+      }),
       entry: byDate[ds] || null,
-      isToday: i === 0,
+      isToday: i === 0
     });
   }
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between" }}>
-      {days.map((d, i) => (
-        <button
-          key={i}
-          onClick={() => d.entry && onSelect && onSelect(d)}
-          style={{
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
-            background: "none", border: "none", padding: 0, font: "inherit", color: "inherit",
-            cursor: d.entry ? "pointer" : "default",
-          }}
-          aria-label={d.entry ? `Dettaglio del ${formatShort(d.date)}` : undefined}
-        >
-          <div
-            className="rt-daydot"
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: "50%",
-              background: d.entry ? EMO_COLORS[valueToLevel(d.entry.value) - 1] : "transparent",
-              border: d.entry ? "none" : "1.5px dashed rgba(74,68,62,0.18)",
-              boxShadow: d.entry ? "inset 0 -2px 4px rgba(0,0,0,0.06)" : "none",
-              animationDelay: `${i * 60}ms`,
-            }}
-          />
-          <span style={{ fontSize: 10.5, color: d.isToday ? "#4A443E" : "#B5AEA3", fontWeight: d.isToday ? 700 : 400 }}>
-            {d.label}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
+  return React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between"
+    }
+  }, days.map((d, i) => React.createElement("button", {
+    key: i,
+    onClick: () => d.entry && onSelect && onSelect(d),
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 7,
+      background: "none",
+      border: "none",
+      padding: 0,
+      font: "inherit",
+      color: "inherit",
+      cursor: d.entry ? "pointer" : "default"
+    },
+    "aria-label": d.entry ? `Dettaglio del ${formatShort(d.date)}` : undefined
+  }, React.createElement("div", {
+    className: "rt-daydot",
+    style: {
+      width: 30,
+      height: 30,
+      borderRadius: "50%",
+      background: d.entry ? EMO_COLORS[valueToLevel(d.entry.value) - 1] : "transparent",
+      border: d.entry ? "none" : "1.5px dashed rgba(74,68,62,0.18)",
+      boxShadow: d.entry ? "inset 0 -2px 4px rgba(0,0,0,0.06)" : "none",
+      animationDelay: `${i * 60}ms`
+    }
+  }), React.createElement("span", {
+    style: {
+      fontSize: 10.5,
+      color: d.isToday ? "#4A443E" : "#B5AEA3",
+      fontWeight: d.isToday ? 700 : 400
+    }
+  }, d.label))));
 }
-
-// ============ animated trend chart ============
-function TrendChart({ data, color }) {
+function TrendChart({
+  data,
+  color
+}) {
   const w = 300;
   const h = 130;
   const padX = 8;
   const padY = 14;
   if (!data || data.length < 2) {
-    return (
-      <div className="rt-empty" style={{ height: h }}>
-        Ancora pochi giorni condivisi.
-        <br />
-        La vostra linea nascerà presto.
-      </div>
-    );
+    return React.createElement("div", {
+      className: "rt-empty",
+      style: {
+        height: h
+      }
+    }, "Ancora pochi giorni condivisi.", React.createElement("br", null), "La vostra linea nascerà presto.");
   }
   const stepX = (w - padX * 2) / (data.length - 1);
   const pts = data.map((d, i) => [padX + i * stepX, padY + (1 - (d.value - 1) / 4) * (h - padY * 2)]);
-  // smooth curve
   let line = `M ${pts[0][0]},${pts[0][1]}`;
   for (let i = 1; i < pts.length; i++) {
     const [x0, y0] = pts[i - 1];
@@ -695,60 +774,102 @@ function TrendChart({ data, color }) {
   const area = `${line} L ${pts[pts.length - 1][0]},${h - padY} L ${pts[0][0]},${h - padY} Z`;
   const lastLevel = valueToLevel(data[data.length - 1].value);
   const lastColor = color || EMO_COLORS[lastLevel - 1];
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: h, overflow: "visible" }}>
-      <defs>
-        <linearGradient id="rtArea" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={lastColor} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={lastColor} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#rtArea)" className="rt-areafade" />
-      <path d={line} fill="none" stroke={lastColor} strokeWidth="3" strokeLinecap="round" className="rt-draw" />
-      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="5" fill="#fff" stroke={lastColor} strokeWidth="3" />
-      <text x={padX} y={h + 4} fill="#B5AEA3" fontSize="9">
-        {formatShort(data[0].date)}
-      </text>
-      <text x={w - padX} y={h + 4} fill="#B5AEA3" fontSize="9" textAnchor="end">
-        {formatShort(data[data.length - 1].date)}
-      </text>
-    </svg>
-  );
+  return React.createElement("svg", {
+    viewBox: `0 0 ${w} ${h}`,
+    style: {
+      width: "100%",
+      height: h,
+      overflow: "visible"
+    }
+  }, React.createElement("defs", null, React.createElement("linearGradient", {
+    id: "rtArea",
+    x1: "0",
+    y1: "0",
+    x2: "0",
+    y2: "1"
+  }, React.createElement("stop", {
+    offset: "0%",
+    stopColor: lastColor,
+    stopOpacity: "0.28"
+  }), React.createElement("stop", {
+    offset: "100%",
+    stopColor: lastColor,
+    stopOpacity: "0"
+  }))), React.createElement("path", {
+    d: area,
+    fill: "url(#rtArea)",
+    className: "rt-areafade"
+  }), React.createElement("path", {
+    d: line,
+    fill: "none",
+    stroke: lastColor,
+    strokeWidth: "3",
+    strokeLinecap: "round",
+    className: "rt-draw"
+  }), React.createElement("circle", {
+    cx: pts[pts.length - 1][0],
+    cy: pts[pts.length - 1][1],
+    r: "5",
+    fill: "#fff",
+    stroke: lastColor,
+    strokeWidth: "3"
+  }), React.createElement("text", {
+    x: padX,
+    y: h + 4,
+    fill: "#B5AEA3",
+    fontSize: "9"
+  }, formatShort(data[0].date)), React.createElement("text", {
+    x: w - padX,
+    y: h + 4,
+    fill: "#B5AEA3",
+    fontSize: "9",
+    textAnchor: "end"
+  }, formatShort(data[data.length - 1].date)));
 }
-
-// ============ pastel slider ============
-function MoodSlider({ value, onChange, inverted }) {
+function MoodSlider({
+  value,
+  onChange,
+  inverted
+}) {
   const cols = inverted ? [...EMO_COLORS].reverse() : EMO_COLORS;
   const gradient = `linear-gradient(90deg, ${cols[0]}, ${cols[1]}, ${cols[2]}, ${cols[3]}, ${cols[4]})`;
-  return (
-    <input
-      type="range"
-      min="1"
-      max="5"
-      step="1"
-      value={value}
-      onChange={(e) => {
-        buzz();
-        onChange(Number(e.target.value));
-      }}
-      className="rt-slider"
-      style={{ background: gradient }}
-      aria-label="Da 1 a 5"
-    />
-  );
+  return React.createElement("input", {
+    type: "range",
+    min: "1",
+    max: "5",
+    step: "1",
+    value: value,
+    onChange: e => {
+      buzz();
+      onChange(Number(e.target.value));
+    },
+    className: "rt-slider",
+    style: {
+      background: gradient
+    },
+    "aria-label": "Da 1 a 5"
+  });
 }
-
-// ============ main ============
 function RelationshipTracker() {
   const [me, setMe] = useState(null);
-  const [screen, setScreen] = useState("identity"); // identity | home | checkin | note | dailyq | done | badges | journal
+  const [screen, setScreen] = useState("identity");
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState({ Dedi: false, Prisci: false });
+  const [status, setStatus] = useState({
+    Dedi: false,
+    Prisci: false
+  });
   const [history, setHistory] = useState([]);
   const [myNotes, setMyNotes] = useState([]);
-  const [values, setValues] = useState({ mood: 3, connection: 3, communication: 3, appreciation: 3, given: 3, stress: 3 });
+  const [values, setValues] = useState({
+    mood: 3,
+    connection: 3,
+    communication: 3,
+    appreciation: 3,
+    given: 3,
+    stress: 3
+  });
   const [note, setNote] = useState("");
   const [period, setPeriod] = useState(14);
   const [chartDim, setChartDim] = useState("value");
@@ -758,51 +879,54 @@ function RelationshipTracker() {
   const [monthly, setMonthly] = useState(null);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [intimacyEnabled, setIntimacyEnabled] = useState(false);
-  const [dailyQ, setDailyQ] = useState({ Dedi: null, Prisci: null });
+  const [dailyQ, setDailyQ] = useState({
+    Dedi: null,
+    Prisci: null
+  });
   const [dailyAnswerDraft, setDailyAnswerDraft] = useState("");
   const [dailySaving, setDailySaving] = useState(false);
   const [resetArmed, setResetArmed] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [partnerLastSeen, setPartnerLastSeen] = useState(null);
-  const [dayDetail, setDayDetail] = useState(null); // { date, value, question, answers }
-
+  const [dayDetail, setDayDetail] = useState(null);
   const date = todayStr();
   const reflectionDay = isReflectionDay(date);
   const prompt = reflectionDay ? resolveSchwa(questionForDate(date), PARTNER_GENDER[me] || "m") : "Un pensiero libero, se ti va";
   const sharedQuestion = sharedQuestionForDate(date, intimacyEnabled);
-
-  const loadAll = useCallback(
-    async (name) => {
-      setLoading(true);
-      const s = (await safeGet(`status:${date}`, true)) || { Dedi: false, Prisci: false };
-      const h = (await safeGet("history", true)) || [];
-      const n = (await safeGet(`notes:${name}`, true)) || [];
-      const ins = await safeGet(`insight:${weekKey()}`, true);
-      const monthlyRefl = await safeGet(`reflection:${monthKey()}`, true);
-      const settings = (await safeGet("settings", true)) || { intimacyEnabled: false };
-      const dq = (await safeGet(`dailyq:${date}`, true)) || { Dedi: null, Prisci: null };
-      safeSet(`lastseen:${name}`, Date.now(), true);
-      const otherSeen = await safeGet(`lastseen:${other(name)}`, true);
-      setPartnerLastSeen(otherSeen);
-      setStatus(s);
-      setHistory(h);
-      setMyNotes(n);
-      setInsight(ins);
-      setMonthly(monthlyRefl);
-      setIntimacyEnabled(!!settings.intimacyEnabled);
-      setDailyQ(dq);
-      setStep(0);
-      setScreen("home");
-      setLoading(false);
-    },
-    [date]
-  );
-
+  const loadAll = useCallback(async name => {
+    setLoading(true);
+    const s = (await safeGet(`status:${date}`, true)) || {
+      Dedi: false,
+      Prisci: false
+    };
+    const h = (await safeGet("history", true)) || [];
+    const n = (await safeGet(`notes:${name}`, true)) || [];
+    const ins = await safeGet(`insight:${weekKey()}`, true);
+    const monthlyRefl = await safeGet(`reflection:${monthKey()}`, true);
+    const settings = (await safeGet("settings", true)) || {
+      intimacyEnabled: false
+    };
+    const dq = (await safeGet(`dailyq:${date}`, true)) || {
+      Dedi: null,
+      Prisci: null
+    };
+    safeSet(`lastseen:${name}`, Date.now(), true);
+    const otherSeen = await safeGet(`lastseen:${other(name)}`, true);
+    setPartnerLastSeen(otherSeen);
+    setStatus(s);
+    setHistory(h);
+    setMyNotes(n);
+    setInsight(ins);
+    setMonthly(monthlyRefl);
+    setIntimacyEnabled(!!settings.intimacyEnabled);
+    setDailyQ(dq);
+    setStep(0);
+    setScreen("home");
+    setLoading(false);
+  }, [date]);
   useEffect(() => {
     if (me) loadAll(me);
   }, [me, loadAll]);
-
-  // strong haptic on the reveal moment (once per session)
   const revealBuzzed = useRef(false);
   const bothAnsweredDailyNow = !!(dailyQ[me] && dailyQ[other(me) || ""]);
   useEffect(() => {
@@ -811,32 +935,38 @@ function RelationshipTracker() {
       buzzStrong();
     }
   }, [screen, bothAnsweredDailyNow]);
-
-  // strong haptic when a new badge is being celebrated
   useEffect(() => {
     if (screen === "done" && newBadges.length > 0) buzzStrong();
   }, [screen, newBadges]);
-
   async function persist() {
     setSaving(true);
-    const existingStatus = (await safeGet(`status:${date}`, true)) || { Dedi: false, Prisci: false };
+    const existingStatus = (await safeGet(`status:${date}`, true)) || {
+      Dedi: false,
+      Prisci: false
+    };
     const existingScores = (await safeGet(`scores:${date}`, true)) || {};
     const partnerWasDone = !!existingStatus[other(me)];
-
-    existingScores[me] = { ...values };
+    existingScores[me] = {
+      ...values
+    };
     await safeSet(`scores:${date}`, existingScores, true);
-    const newStatus = { ...existingStatus, [me]: true };
+    const newStatus = {
+      ...existingStatus,
+      [me]: true
+    };
     await safeSet(`status:${date}`, newStatus, true);
-
     let notesCountAfter = myNotes.length;
     if (note.trim()) {
       const existingNotes = (await safeGet(`notes:${me}`, true)) || [];
-      const updatedNotes = [{ date, note: note.trim(), question: reflectionDay ? prompt : null }, ...existingNotes].slice(0, 30);
+      const updatedNotes = [{
+        date,
+        note: note.trim(),
+        question: reflectionDay ? prompt : null
+      }, ...existingNotes].slice(0, 30);
       await safeSet(`notes:${me}`, updatedNotes, true);
       setMyNotes(updatedNotes);
       notesCountAfter = updatedNotes.length;
     }
-
     let newHistory = history;
     if (partnerWasDone && existingScores.Dedi && existingScores.Prisci) {
       const b = existingScores;
@@ -848,185 +978,203 @@ function RelationshipTracker() {
       const avgStress = (b.Dedi.stress + b.Prisci.stress) / 2;
       const value = Number(((avgMood + avgConnection + avgCommunication + avgAppreciation + avgGiven + (6 - avgStress)) / 6).toFixed(2));
       const existingHist = (await safeGet("history", true)) || [];
-      newHistory = [...existingHist.filter((e) => e.date !== date), { date, value, avgMood, avgConnection, avgCommunication, avgAppreciation, avgGiven, avgStress }]
-        .sort((a, b2) => (a.date > b2.date ? 1 : -1))
-        .slice(-90);
+      newHistory = [...existingHist.filter(e => e.date !== date), {
+        date,
+        value,
+        avgMood,
+        avgConnection,
+        avgCommunication,
+        avgAppreciation,
+        avgGiven,
+        avgStress
+      }].sort((a, b2) => a.date > b2.date ? 1 : -1).slice(-90);
       await safeSet("history", newHistory, true);
     }
-
     const finalStreak = computeStreak(newHistory);
     const unlockedNow = unlockedBadgeIds(newHistory, notesCountAfter, finalStreak);
     const seen = (await safeGet(`badges:${me}`, true)) || [];
-    const fresh = unlockedNow.filter((id) => !seen.includes(id));
+    const fresh = unlockedNow.filter(id => !seen.includes(id));
     if (fresh.length) {
       await safeSet(`badges:${me}`, unlockedNow, true);
-      setNewBadges(BADGES.filter((b) => fresh.includes(b.id)));
+      setNewBadges(BADGES.filter(b => fresh.includes(b.id)));
     } else setNewBadges([]);
-
     setStatus(newStatus);
     setHistory(newHistory);
     setSaving(false);
     setScreen("done");
   }
-
   async function generateInsight() {
     if (history.length < 3 || insightLoading) return;
     setInsightLoading(true);
     try {
       const recent = history.slice(-14);
-      const avgN = (k) => recent.reduce((s, e) => s + (e[k] ?? 3), 0) / recent.length;
-      const avg = (k) => avgN(k).toFixed(1);
+      const avgN = k => recent.reduce((s, e) => s + (e[k] ?? 3), 0) / recent.length;
+      const avg = k => avgN(k).toFixed(1);
       const streakNow = computeStreak(history);
-
-      // --- detected signals (only when meaningful) ---
       const signals = [];
-
-      // 1. reciprocity gap between given and received appreciation
       const appreciationNum = avgN("avgAppreciation");
       const givenNum = avgN("avgGiven");
       const reciprocityGap = Math.abs(appreciationNum - givenNum);
       if (reciprocityGap >= 1.0) {
-        signals.push(
-          `c'è uno scarto di ${reciprocityGap.toFixed(1)} punti su 5 tra quanto la coppia sente di dare apprezzamento (${givenNum.toFixed(1)}) e quanto sente di riceverne (${appreciationNum.toFixed(1)}) — ${givenNum > appreciationNum ? "sembra dare più di quanto sente ricambiato" : "sembra ricevere più di quanto sente di ricambiare"}`
-        );
+        signals.push(`c'è uno scarto di ${reciprocityGap.toFixed(1)} punti su 5 tra quanto la coppia sente di dare apprezzamento (${givenNum.toFixed(1)}) e quanto sente di riceverne (${appreciationNum.toFixed(1)}) — ${givenNum > appreciationNum ? "sembra dare più di quanto sente ricambiato" : "sembra ricevere più di quanto sente di ricambiare"}`);
       }
-
-      // 2. biggest week-over-week change on any dimension
-      const curWeek = history.filter((h) => h.date >= daysAgoStr(6));
-      const prevWeek = history.filter((h) => h.date >= daysAgoStr(13) && h.date < daysAgoStr(6));
+      const curWeek = history.filter(h => h.date >= daysAgoStr(6));
+      const prevWeek = history.filter(h => h.date >= daysAgoStr(13) && h.date < daysAgoStr(6));
       if (curWeek.length >= 2 && prevWeek.length >= 2) {
         const wAvg = (arr, k) => arr.reduce((s, e) => s + (e[k] ?? 3), 0) / arr.length;
         const dimNames = {
-          avgMood: "l'umore", avgConnection: "la connessione", avgCommunication: "la comunicazione",
-          avgAppreciation: "l'apprezzamento ricevuto", avgGiven: "l'apprezzamento dato", avgStress: "lo stress",
+          avgMood: "l'umore",
+          avgConnection: "la connessione",
+          avgCommunication: "la comunicazione",
+          avgAppreciation: "l'apprezzamento ricevuto",
+          avgGiven: "l'apprezzamento dato",
+          avgStress: "lo stress"
         };
         let biggest = null;
-        Object.keys(dimNames).forEach((k) => {
+        Object.keys(dimNames).forEach(k => {
           const delta = wAvg(curWeek, k) - wAvg(prevWeek, k);
-          if (!biggest || Math.abs(delta) > Math.abs(biggest.delta)) biggest = { k, delta };
+          if (!biggest || Math.abs(delta) > Math.abs(biggest.delta)) biggest = {
+            k,
+            delta
+          };
         });
         if (biggest && Math.abs(biggest.delta) >= 0.7) {
           const goodDirection = biggest.k === "avgStress" ? biggest.delta < 0 : biggest.delta > 0;
-          signals.push(
-            `rispetto alla settimana precedente ${dimNames[biggest.k]} è ${goodDirection ? "migliorato" : "peggiorato"} in modo netto (${biggest.delta > 0 ? "+" : ""}${biggest.delta.toFixed(1)} punti)`
-          );
+          signals.push(`rispetto alla settimana precedente ${dimNames[biggest.k]} è ${goodDirection ? "migliorato" : "peggiorato"} in modo netto (${biggest.delta > 0 ? "+" : ""}${biggest.delta.toFixed(1)} punti)`);
         }
       }
-
-      // 3. chronically weakest dimension over the whole 14-day window
-      const posDims = { avgMood: "l'umore", avgConnection: "la connessione", avgCommunication: "la comunicazione", avgAppreciation: "l'apprezzamento ricevuto", avgGiven: "l'apprezzamento dato" };
-      const dimVals = Object.keys(posDims).map((k) => ({ k, v: avgN(k) }));
-      const weakest = dimVals.reduce((a, b) => (b.v < a.v ? b : a));
-      const othersMean = dimVals.filter((d) => d.k !== weakest.k).reduce((s, d) => s + d.v, 0) / (dimVals.length - 1);
+      const posDims = {
+        avgMood: "l'umore",
+        avgConnection: "la connessione",
+        avgCommunication: "la comunicazione",
+        avgAppreciation: "l'apprezzamento ricevuto",
+        avgGiven: "l'apprezzamento dato"
+      };
+      const dimVals = Object.keys(posDims).map(k => ({
+        k,
+        v: avgN(k)
+      }));
+      const weakest = dimVals.reduce((a, b) => b.v < a.v ? b : a);
+      const othersMean = dimVals.filter(d => d.k !== weakest.k).reduce((s, d) => s + d.v, 0) / (dimVals.length - 1);
       if (othersMean - weakest.v >= 0.8) {
         signals.push(`${posDims[weakest.k]} è costantemente più basso del resto (${weakest.v.toFixed(1)}/5 contro una media di ${othersMean.toFixed(1)})`);
       }
-
-      // 4. stress and communication moving together
       if (avgN("avgStress") >= 3.5 && avgN("avgCommunication") <= 2.8) {
         signals.push("lo stress è alto e la comunicazione sta faticando nello stesso periodo — probabilmente si influenzano a vicenda");
       }
-
-      const signalNote = signals.length
-        ? ` Segnali rilevati nei dati: ${signals.join("; ")}. Scegli SOLO il segnale più interessante e rendilo il centro del messaggio, con delicatezza e senza far sentire nessuno in colpa. Ignora gli altri.`
-        : "";
-
+      const signalNote = signals.length ? ` Segnali rilevati nei dati: ${signals.join("; ")}. Scegli SOLO il segnale più interessante e rendilo il centro del messaggio, con delicatezza e senza far sentire nessuno in colpa. Ignora gli altri.` : "";
       const promptText = `Sei il compagno emotivo di un'app per coppie. Dati aggregati (mai individuali) degli ultimi ${recent.length} giorni della coppia Dedi e Prisci: umore medio ${avg("avgMood")}/5, connessione media ${avg("avgConnection")}/5, comunicazione media ${avg("avgCommunication")}/5, apprezzamento ricevuto medio ${avg("avgAppreciation")}/5, apprezzamento dato medio ${avg("avgGiven")}/5, stress medio ${avg("avgStress")}/5, ${streakNow} giorni consecutivi di check-in.${signalNote} Scrivi in italiano un breve messaggio caldo e incoraggiante (max 3 frasi, tono amichevole tipo Headspace, dai del "voi"). Niente diagnosi, niente elenchi, solo il messaggio.`;
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
           max_tokens: 1000,
-          messages: [{ role: "user", content: promptText }],
-        }),
+          messages: [{
+            role: "user",
+            content: promptText
+          }]
+        })
       });
       const data = await response.json();
-      const text = (data.content || [])
-        .filter((c) => c.type === "text")
-        .map((c) => c.text)
-        .join("\n")
-        .trim();
+      const text = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("\n").trim();
       if (text) {
-        const ins = { text, week: weekKey(), createdAt: date };
+        const ins = {
+          text,
+          week: weekKey(),
+          createdAt: date
+        };
         await safeSet(`insight:${weekKey()}`, ins, true);
         setInsight(ins);
       }
     } catch {}
     setInsightLoading(false);
   }
-
   async function generateMonthly() {
     if (history.length < 10 || monthlyLoading) return;
     setMonthlyLoading(true);
     try {
       const from = daysAgoStr(29);
-      const window30 = history.filter((h) => h.date >= from);
+      const window30 = history.filter(h => h.date >= from);
       const pool = window30.length >= 10 ? window30 : history.slice(-30);
-      const avgN = (k) => pool.reduce((s, e) => s + (e[k] ?? 3), 0) / pool.length;
+      const avgN = k => pool.reduce((s, e) => s + (e[k] ?? 3), 0) / pool.length;
       const streakNow = computeStreak(history);
       const badgeCount = unlockedBadgeIds(history, myNotes.length, streakNow).length;
-      const best = pool.reduce((a, b) => (b.value > a.value ? b : a));
+      const best = pool.reduce((a, b) => b.value > a.value ? b : a);
       const monthName = MONTH_NAMES[new Date().getMonth()];
       const promptText = `Sei il compagno emotivo di un'app per coppie. Scrivi il "racconto del mese" di ${monthName} per la coppia Dedi e Prisci, basandoti SOLO su questi dati aggregati (mai individuali) delle ultime ${pool.length} giornate condivise: umore medio ${avgN("avgMood").toFixed(1)}/5, connessione media ${avgN("avgConnection").toFixed(1)}/5, comunicazione media ${avgN("avgCommunication").toFixed(1)}/5, apprezzamento ricevuto medio ${avgN("avgAppreciation").toFixed(1)}/5, apprezzamento dato medio ${avgN("avgGiven").toFixed(1)}/5, stress medio ${avgN("avgStress").toFixed(1)}/5. Streak attuale: ${streakNow} giorni consecutivi. Traguardi sbloccati finora: ${badgeCount}. La giornata migliore del periodo è stata il ${formatShort(best.date)}. Scrivi in italiano un racconto caldo e narrativo di 5-7 frasi, in un unico paragrafo, tono amichevole tipo Headspace, dai del "voi". Riconosci l'impegno della costanza, nota con onestà gentile sia ciò che è andato bene sia ciò che merita attenzione, e chiudi con uno sguardo al mese che viene. Niente diagnosi, niente elenchi, niente titoli: solo il paragrafo.`;
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
           max_tokens: 1000,
-          messages: [{ role: "user", content: promptText }],
-        }),
+          messages: [{
+            role: "user",
+            content: promptText
+          }]
+        })
       });
       const data = await response.json();
-      const text = (data.content || [])
-        .filter((c) => c.type === "text")
-        .map((c) => c.text)
-        .join("\n")
-        .trim();
+      const text = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("\n").trim();
       if (text) {
-        const refl = { text, month: monthKey(), createdAt: date };
+        const refl = {
+          text,
+          month: monthKey(),
+          createdAt: date
+        };
         await safeSet(`reflection:${monthKey()}`, refl, true);
         setMonthly(refl);
       }
     } catch {}
     setMonthlyLoading(false);
   }
-
   async function submitDailyAnswer() {
     if (!dailyAnswerDraft.trim() || dailySaving) return;
     setDailySaving(true);
-    const existing = (await safeGet(`dailyq:${date}`, true)) || { Dedi: null, Prisci: null };
-    existing[me] = { answer: dailyAnswerDraft.trim(), at: Date.now() };
+    const existing = (await safeGet(`dailyq:${date}`, true)) || {
+      Dedi: null,
+      Prisci: null
+    };
+    existing[me] = {
+      answer: dailyAnswerDraft.trim(),
+      at: Date.now()
+    };
     await safeSet(`dailyq:${date}`, existing, true);
     setDailyQ(existing);
     setDailyAnswerDraft("");
     setDailySaving(false);
     setScreen("home");
   }
-
   async function toggleIntimacy() {
     const next = !intimacyEnabled;
     setIntimacyEnabled(next);
-    await safeSet("settings", { intimacyEnabled: next }, true);
+    await safeSet("settings", {
+      intimacyEnabled: next
+    }, true);
   }
-
   async function openDayDetail(d) {
     buzz();
     if (dayDetail && dayDetail.date === d.date) {
       setDayDetail(null);
       return;
     }
-    const dq = (await safeGet(`dailyq:${d.date}`, true)) || { Dedi: null, Prisci: null };
+    const dq = (await safeGet(`dailyq:${d.date}`, true)) || {
+      Dedi: null,
+      Prisci: null
+    };
     const bothAnswered = !!(dq.Dedi && dq.Prisci);
     setDayDetail({
       date: d.date,
       value: d.entry.value,
       question: sharedQuestionForDate(d.date, intimacyEnabled),
-      answers: bothAnswered ? dq : null,
+      answers: bothAnswered ? dq : null
     });
   }
-
   async function handleResetTap() {
     if (!resetArmed) {
       setResetArmed(true);
@@ -1040,23 +1188,34 @@ function RelationshipTracker() {
     setResetArmed(false);
     setMe(null);
     setScreen("identity");
-    setStatus({ Dedi: false, Prisci: false });
+    setStatus({
+      Dedi: false,
+      Prisci: false
+    });
     setHistory([]);
     setMyNotes([]);
-    setDailyQ({ Dedi: null, Prisci: null });
+    setDailyQ({
+      Dedi: null,
+      Prisci: null
+    });
     setInsight(null);
     setMonthly(null);
     setNewBadges([]);
   }
-
   function reset() {
     setMe(null);
     setScreen("identity");
     setStep(0);
-    setValues({ mood: 3, connection: 3, communication: 3, appreciation: 3, given: 3, stress: 3 });
+    setValues({
+      mood: 3,
+      connection: 3,
+      communication: 3,
+      appreciation: 3,
+      given: 3,
+      stress: 3
+    });
     setNote("");
   }
-
   const dim = STEPS[step];
   const scale = SCALE[dim];
   const level = values[dim] ?? 3;
@@ -1066,33 +1225,29 @@ function RelationshipTracker() {
   const targetPartner = scale?.genderTarget === "other" ? other(me) : me;
   const targetGender = PARTNER_GENDER[targetPartner] || "m";
   const words = scale?.genderVariant && targetGender === "f" ? scale.words.map(feminize) : scale?.words;
-  const questionText =
-    dim === "appreciation" && me
-      ? `Quanto ti sei sentit${myGender === "f" ? "a" : "o"}\napprezzat${myGender === "f" ? "a" : "o"} oggi da ${PARTNER_PRONOUN[other(me)] || "lui/lei"}?`
-      : dim === "given" && me
-      ? `Quanto hai fatto sentire\napprezzat${targetGender === "f" ? "a" : "o"} ${other(me)} oggi?`
-      : scale?.question;
+  const questionText = dim === "appreciation" && me ? `Quanto ti sei sentit${myGender === "f" ? "a" : "o"}\napprezzat${myGender === "f" ? "a" : "o"} oggi da ${PARTNER_PRONOUN[other(me)] || "lui/lei"}?` : dim === "given" && me ? `Quanto hai fatto sentire\napprezzat${targetGender === "f" ? "a" : "o"} ${other(me)} oggi?` : scale?.question;
   const bothDoneToday = status.Dedi && status.Prisci;
   const iAmDoneToday = !!status[me];
   const streak = computeStreak(history);
-  const selectedDim = DIM_OPTIONS.find((d) => d.key === chartDim) || DIM_OPTIONS[0];
-  const chartData = history.slice(-period).map((e) => ({ date: e.date, value: e[chartDim] ?? e.value ?? 3 }));
+  const selectedDim = DIM_OPTIONS.find(d => d.key === chartDim) || DIM_OPTIONS[0];
+  const chartData = history.slice(-period).map(e => ({
+    date: e.date,
+    value: e[chartDim] ?? e.value ?? 3
+  }));
   const state = rollingState(history);
   const stateLevel = state ? valueToLevel(state.avg) : 3;
   const myDailyAnswer = dailyQ[me];
   const otherDailyAnswer = dailyQ[other(me) || ""];
   const bothAnsweredDaily = !!(myDailyAnswer && otherDailyAnswer);
-
-  const bg =
-    screen === "checkin"
-      ? `radial-gradient(130% 80% at 50% -5%, ${emoColor}33 0%, rgba(251,249,246,0) 55%), #FBF9F6`
-      : `radial-gradient(90% 55% at 15% 0%, rgba(240,183,164,0.13) 0%, rgba(251,249,246,0) 55%),
+  const bg = screen === "checkin" ? `radial-gradient(130% 80% at 50% -5%, ${emoColor}33 0%, rgba(251,249,246,0) 55%), #FBF9F6` : `radial-gradient(90% 55% at 15% 0%, rgba(240,183,164,0.13) 0%, rgba(251,249,246,0) 55%),
          radial-gradient(90% 60% at 90% 8%, rgba(201,184,232,0.13) 0%, rgba(251,249,246,0) 55%),
          radial-gradient(80% 50% at 60% 100%, rgba(169,195,161,0.10) 0%, rgba(251,249,246,0) 50%), #FBF9F6`;
-
-  return (
-    <div className="rt-root" style={{ background: bg }}>
-      <style>{`
+  return React.createElement("div", {
+    className: "rt-root",
+    style: {
+      background: bg
+    }
+  }, React.createElement("style", null, `
         * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
         .rt-root {
           min-height: 620px;
@@ -1246,557 +1401,1145 @@ function RelationshipTracker() {
           .rt-areafade { opacity: 1; }
           * { transition: none !important; }
         }
-      `}</style>
-
-      <div className="rt-col">
-        {/* ============ IDENTITY ============ */}
-        {screen === "identity" && (
-          <div className="rt-fade" style={{ paddingTop: 54, textAlign: "center" }}>
-            <h1 className="rt-display" style={{ marginBottom: 12 }}>{"Chi di voi\nè dei due?"}</h1>
-            <p className="rt-sub" style={{ marginBottom: 44 }}>Un minuto al giorno. Insieme.</p>
-            <div style={{ display: "flex", gap: 14 }}>
-              {PARTNERS.map((p) => (
-                <button key={p} className="rt-idcard" onClick={() => { buzz(); setMe(p); }}>
-                  <Fuzzy color={PARTNER_COLORS[p]} level={4} size={100} id={`id-${p}`} float={false} breathe />
-                  <div style={{ marginTop: 14, fontWeight: 650, fontSize: 17, letterSpacing: -0.3 }}>{p}</div>
-                </button>
-              ))}
-            </div>
-            <button
-              className="rt-chip"
-              style={{ marginTop: 36, background: "transparent", color: "#C4BDB2" }}
-              onClick={handleResetTap}
-            >
-              {resetting ? "Azzeramento…" : resetArmed ? "Tocca di nuovo per confermare" : "Azzera i dati e ricomincia"}
-            </button>
-          </div>
-        )}
-
-        {loading && (
-          <div>
-            <div className="rt-skel" style={{ height: 20, width: 150, borderRadius: 8, marginBottom: 8 }} />
-            <div className="rt-skel" style={{ height: 30, width: 200, borderRadius: 10, marginBottom: 24 }} />
-            <div className="rt-skel" style={{ height: 280, borderRadius: 28, marginBottom: 14 }} />
-            <div style={{ display: "flex", gap: 14, marginBottom: 14 }}>
-              <div className="rt-skel" style={{ flex: 1.6, height: 120, borderRadius: 28 }} />
-              <div className="rt-skel" style={{ flex: 1, height: 120, borderRadius: 28 }} />
-            </div>
-            <div className="rt-skel" style={{ height: 110, borderRadius: 28, marginBottom: 14 }} />
-            <div className="rt-skel" style={{ height: 90, borderRadius: 28 }} />
-          </div>
-        )}
-
-        {/* ============ HOME ============ */}
-        {!loading && screen === "home" && (
-          <div className="rt-stagger">
-            {/* header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
-              <div>
-                <p className="rt-cap">{new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</p>
-                <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: -0.8, marginTop: 3 }}>Ciao, {me}</h1>
-                {presenceLabel(partnerLastSeen, PARTNER_GENDER[other(me)]) && (
-                  <p style={{ fontSize: 12, color: "#A29B90", marginTop: 3, display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: PARTNER_COLORS[other(me)], display: "inline-block" }} />
-                    {other(me)} {presenceLabel(partnerLastSeen, PARTNER_GENDER[other(me)])}
-                  </p>
-                )}
-              </div>
-              <button className="rt-chip" onClick={reset}>Cambia</button>
-            </div>
-
-            {/* hero: relationship state */}
-            <div className="rt-card" style={{ padding: "30px 24px 26px", textAlign: "center", marginBottom: 14 }}>
-              <div style={{ position: "relative", width: 150, margin: "0 auto" }}>
-                {bothDoneToday && (
-                  <>
-                    <div className="rt-halo" style={{ animationDelay: "0s" }} />
-                    <div className="rt-halo" style={{ animationDelay: "1.1s" }} />
-                  </>
-                )}
-                <Fuzzy
-                  color={state ? EMO_COLORS[stateLevel - 1] : "#D9CFE8"}
-                  level={state ? stateLevel : 3}
-                  size={150}
-                  id="home"
-                  breathe
-                />
-              </div>
-              <p className="rt-cap" style={{ marginTop: 16 }}>Il vostro stato</p>
-              <p style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.6, marginTop: 4 }}>
-                {state ? STATE_WORDS[stateLevel - 1] : "Tutto da scrivere"}
-              </p>
-              {state && (
-                <p className="rt-sub" style={{ fontSize: 12, marginTop: 4 }}>
-                  {state.days === 1 ? "sul vostro primo giorno insieme" : `media degli ultimi ${state.days} giorni`}
-                </p>
-              )}
-              {!iAmDoneToday ? (
-                <button className="rt-btn" style={{ marginTop: 20 }} onClick={() => { buzz(); setStep(0); setScreen("checkin"); }}>
-                  Fai il check-in di oggi
-                </button>
-              ) : (
-                <p className="rt-sub" style={{ marginTop: 14 }}>
-                  {bothDoneToday ? "✓ Oggi vi siete già ritrovati" : `✓ Fatto — ora tocca a ${other(me)}`}
-                </p>
-              )}
-            </div>
-
-            {/* week + streak */}
-            <div style={{ display: "flex", gap: 14, marginBottom: 14 }}>
-              <div className="rt-card" style={{ flex: 1.6, padding: "20px 18px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                <p className="rt-cap" style={{ marginBottom: 14 }}>La settimana</p>
-                <WeekStrip history={history} onSelect={openDayDetail} />
-              </div>
-              <div className="rt-card" style={{ flex: 1, padding: "16px 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                <p className="rt-cap" style={{ marginBottom: 8 }}>Streak</p>
-                <StreakRing streak={streak} />
-              </div>
-            </div>
-
-            {/* day detail (opens on week-dot tap) */}
-            {dayDetail && (
-              <div className="rt-card rt-pop" style={{ padding: "20px 22px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div
-                      style={{
-                        width: 34, height: 34, borderRadius: "50%",
-                        background: EMO_COLORS[valueToLevel(dayDetail.value) - 1],
-                        boxShadow: "inset 0 -2px 4px rgba(0,0,0,0.06)",
-                      }}
-                    />
-                    <div>
-                      <p className="rt-cap">{formatShort(dayDetail.date)}</p>
-                      <p style={{ fontSize: 15, fontWeight: 650, letterSpacing: -0.3 }}>{STATE_WORDS[valueToLevel(dayDetail.value) - 1]}</p>
-                    </div>
-                  </div>
-                  <button className="rt-chip" onClick={() => setDayDetail(null)}>✕</button>
-                </div>
-                {dayDetail.answers ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <p style={{ fontSize: 13, fontStyle: "italic", color: "#A29B90" }}>{dayDetail.question.emoji} {dayDetail.question.text}</p>
-                    <div style={{ background: `${PARTNER_COLORS[me]}33`, borderRadius: 16, padding: "10px 14px" }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: "#8C6B5C", marginBottom: 2 }}>Tu</p>
-                      <p style={{ fontSize: 13.5, lineHeight: 1.45 }}>{dayDetail.answers[me]?.answer}</p>
-                    </div>
-                    <div style={{ background: `${PARTNER_COLORS[other(me)]}33`, borderRadius: 16, padding: "10px 14px", alignSelf: "flex-end", width: "92%" }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: "#5C7A55", marginBottom: 2 }}>{other(me)}</p>
-                      <p style={{ fontSize: 13.5, lineHeight: 1.45 }}>{dayDetail.answers[other(me)]?.answer}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="rt-sub" style={{ fontSize: 12.5 }}>
-                    Quel giorno la domanda non è stata rivelata da entrambi.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* daily shared question */}
-            <div className="rt-card" style={{ padding: "20px 22px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                <div
-                  style={{
-                    minWidth: 44, height: 44, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center",
-                    background: "linear-gradient(135deg, rgba(240,183,164,0.35), rgba(201,184,232,0.35))",
-                    fontSize: 20,
-                  }}
-                >
-                  {bothAnsweredDaily ? sharedQuestion.emoji : "❔"}
-                </div>
-                <div>
-                  <p className="rt-cap" style={{ marginBottom: 3 }}>Domanda del giorno</p>
-                  <p style={{ fontSize: 13.5, lineHeight: 1.45, fontWeight: 500 }}>
-                    {bothAnsweredDaily ? sharedQuestion.text : myDailyAnswer ? "Risposta inviata" : "C'è una domanda per voi due, oggi"}
-                  </p>
-                </div>
-              </div>
-
-              {bothAnsweredDaily ? (
-                <div className="rt-pop" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <p className="rt-cap">✨ Rivelato oggi</p>
-                  <div style={{ background: `${PARTNER_COLORS[me]}33`, borderRadius: 16, padding: "10px 14px" }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: "#8C6B5C", marginBottom: 2 }}>Tu</p>
-                    <p style={{ fontSize: 13.5, lineHeight: 1.45 }}>{myDailyAnswer.answer}</p>
-                  </div>
-                  <div style={{ background: `${PARTNER_COLORS[other(me)]}33`, borderRadius: 16, padding: "10px 14px", alignSelf: "flex-end", width: "92%" }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: "#5C7A55", marginBottom: 2 }}>{other(me)}</p>
-                    <p style={{ fontSize: 13.5, lineHeight: 1.45 }}>{otherDailyAnswer.answer}</p>
-                  </div>
-                </div>
-              ) : myDailyAnswer ? (
-                <p className="rt-sub" style={{ fontSize: 13 }}>
-                  La tua risposta è al sicuro. Si rivelerà quando risponderà anche {other(me)}.
-                </p>
-              ) : (
-                <button className="rt-btn-soft" onClick={() => { buzz(); setScreen("dailyq"); }}>
-                  Apri
-                </button>
-              )}
-            </div>
-
-            {/* AI insight */}
-            <div className="rt-card" style={{ padding: "20px 22px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 30, height: 30 }}>
-                  <Fuzzy color="#C9B8E8" level={4} size={30} id="ai" float={false} />
-                </div>
-                <p className="rt-cap">Il vostro compagno</p>
-              </div>
-              {insight ? (
-                <p style={{ fontSize: 14, lineHeight: 1.6, color: "#5C554E" }}>{insight.text}</p>
-              ) : history.length >= 3 ? (
-                <button className="rt-btn-soft" onClick={generateInsight} disabled={insightLoading}>
-                  {insightLoading ? "Sto pensando a voi…" : "Chiedi un pensiero sulla settimana"}
-                </button>
-              ) : (
-                <p className="rt-sub" style={{ fontSize: 13 }}>
-                  Dopo qualche giorno di check-in insieme, qui troverete un piccolo pensiero sulla vostra settimana.
-                </p>
-              )}
-              {insightLoading && <div className="rt-shimmer" style={{ height: 3, borderRadius: 2, background: "rgba(201,184,232,0.3)" }} />}
-            </div>
-
-            {/* monthly reflection */}
-            <div className="rt-card" style={{ padding: "20px 22px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div
-                  style={{
-                    width: 30, height: 30, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
-                    background: "linear-gradient(135deg, rgba(175,200,224,0.4), rgba(201,184,232,0.4))",
-                    fontSize: 15,
-                  }}
-                >
-                  📖
-                </div>
-                <p className="rt-cap">Il racconto del mese</p>
-              </div>
-              {monthly ? (
-                <p style={{ fontSize: 14, lineHeight: 1.65, color: "#5C554E" }}>{monthly.text}</p>
-              ) : history.length >= 10 ? (
-                <button className="rt-btn-soft" onClick={generateMonthly} disabled={monthlyLoading}>
-                  {monthlyLoading ? "Sto ripensando al vostro mese…" : `Racconta il nostro ${MONTH_NAMES[new Date().getMonth()]}`}
-                </button>
-              ) : (
-                <p className="rt-sub" style={{ fontSize: 13 }}>
-                  Dopo dieci giornate condivise, qui troverete un piccolo racconto del vostro mese.
-                </p>
-              )}
-              {monthlyLoading && <div className="rt-shimmer" style={{ height: 3, borderRadius: 2, background: "rgba(175,200,224,0.35)" }} />}
-            </div>
-
-            {/* trend */}
-            <div className="rt-card" style={{ padding: "20px 22px", marginBottom: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <p className="rt-title" style={{ fontSize: 15 }}>Andamento</p>
-                <div style={{ display: "flex", gap: 5 }}>
-                  {[7, 14, 30].map((p) => (
-                    <button key={p} className={`rt-chip ${period === p ? "on" : ""}`} onClick={() => setPeriod(p)}>
-                      {p}g
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="rt-dimrow" style={{ marginBottom: 14 }}>
-                {DIM_OPTIONS.map((d) => (
-                  <button
-                    key={d.key}
-                    className={`rt-chip ${chartDim === d.key ? "on" : ""}`}
-                    style={chartDim === d.key ? { background: d.color, color: "#4A443E", fontWeight: 650 } : {}}
-                    onClick={() => setChartDim(d.key)}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-              <TrendChart data={chartData} color={chartDim === "value" ? undefined : selectedDim.color} />
-              {selectedDim.inverted && (
-                <p style={{ marginTop: 10, fontSize: 11.5, color: "#B5AEA3" }}>Per lo stress, più bassa è la linea, meglio è.</p>
-              )}
-              {(() => {
-                const cmp = periodComparison(history, period);
-                if (!cmp || chartDim !== "value") return null;
-                const up = cmp.diff > 0.15;
-                const down = cmp.diff < -0.15;
-                return (
-                  <p style={{ marginTop: 14, fontSize: 12.5, color: "#8C8579" }}>
-                    {up ? "Più sereni" : down ? "Un po' più pesanti" : "Stabili"} rispetto ai {period} giorni precedenti
-                  </p>
-                );
-              })()}
-            </div>
-
-            {/* weekly numeric summary */}
-            {(() => {
-              const ws = weeklySummary(history);
-              if (!ws) return null;
-              return (
-                <div className="rt-card" style={{ padding: "20px 22px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-                  <p className="rt-title" style={{ fontSize: 15 }}>La settimana in numeri</p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <span className="rt-sub" style={{ fontSize: 13 }}>Check-in completati</span>
-                      <span style={{ fontWeight: 650, fontSize: 14 }}>{ws.completed} su 7</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <span className="rt-sub" style={{ fontSize: 13 }}>Punto forte</span>
-                      <span style={{ fontWeight: 650, fontSize: 14 }}>{ws.strongest.label}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <span className="rt-sub" style={{ fontSize: 13 }}>Da coltivare</span>
-                      <span style={{ fontWeight: 650, fontSize: 14 }}>{ws.weakest.label}</span>
-                    </div>
-                    {ws.direction && (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                        <span className="rt-sub" style={{ fontSize: 13 }}>Rispetto alla settimana scorsa</span>
-                        <span style={{ fontWeight: 650, fontSize: 14, color: ws.direction === "up" ? "#7FA86F" : ws.direction === "down" ? "#D08A76" : "#8C8579" }}>
-                          {ws.direction === "up" ? "In salita ↗" : ws.direction === "down" ? "In discesa ↘" : "Stabile →"}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* badges + journal row */}
-            <div style={{ display: "flex", gap: 14, alignItems: "stretch" }}>
-              <button
-                className="rt-card rt-card-press"
-                onClick={() => setScreen("badges")}
-                style={{ flex: 1, padding: "18px 18px", border: "1px solid rgba(255,255,255,0.95)", textAlign: "left", font: "inherit", color: "inherit", display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}
-              >
-                <p style={{ fontSize: 20 }}>
-                  {unlockedBadgeIds(history, myNotes.length, streak).slice(-2).map((id) => BADGES.find((b) => b.id === id)?.emoji).join(" ") || "🏅"}
-                </p>
-                <p className="rt-title" style={{ fontSize: 14 }}>Traguardi</p>
-                <p className="rt-sub" style={{ fontSize: 12 }}>
-                  {unlockedBadgeIds(history, myNotes.length, streak).length} di {BADGES.length}
-                </p>
-              </button>
-              <button
-                className="rt-card rt-card-press"
-                onClick={() => setScreen("journal")}
-                style={{ flex: 1, padding: "18px 18px", border: "1px solid rgba(255,255,255,0.95)", textAlign: "left", font: "inherit", color: "inherit", display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}
-              >
-                <p style={{ fontSize: 20 }}>✍️</p>
-                <p className="rt-title" style={{ fontSize: 14 }}>I tuoi pensieri</p>
-                <p className="rt-sub" style={{ fontSize: 12 }}>{myNotes.length} note private</p>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ============ CHECK-IN ============ */}
-        {!loading && screen === "checkin" && scale && (
-          <div className="rt-fade" key={dim} style={{ paddingTop: 10, textAlign: "center" }}>
-            <div className="rt-dots" style={{ marginBottom: 34 }}>
-              {STEPS.map((s, i) => (
-                <div key={s} className={`rt-dot ${i <= step ? "on" : ""}`} />
-              ))}
-            </div>
-            <h1 className="rt-display" style={{ fontSize: 30, marginBottom: 30 }}>{questionText}</h1>
-            <Fuzzy color={emoColor} level={displayLevel} size={185} id={dim} />
-            <p key={level} className="rt-word-swap" style={{ fontSize: 26, fontWeight: 700, letterSpacing: -0.6, color: "#4A443E", marginTop: 22, marginBottom: 34 }}>
-              {words[level - 1]}
-            </p>
-            <MoodSlider value={level} onChange={(v) => setValues((prev) => ({ ...prev, [dim]: v }))} inverted={scale.inverted} />
-            <div style={{ marginTop: 36 }}>
-              <button className="rt-btn" onClick={() => { buzz(); step < STEPS.length - 1 ? setStep(step + 1) : setScreen("note"); }}>
-                Continua
-              </button>
-              <button className="rt-btn-soft" style={{ marginTop: 10 }} onClick={() => (step > 0 ? setStep(step - 1) : setScreen("home"))}>
-                Indietro
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ============ NOTE ============ */}
-        {!loading && screen === "note" && (
-          <div className="rt-fade" style={{ paddingTop: 10, textAlign: "center" }}>
-            <div className="rt-dots" style={{ marginBottom: 34 }}>
-              {STEPS.map((s) => (
-                <div key={s} className="rt-dot on" />
-              ))}
-            </div>
-            {reflectionDay && <p className="rt-cap" style={{ marginBottom: 12 }}>Domanda del giorno</p>}
-            <h1 className="rt-display" style={{ fontSize: 27, marginBottom: 10 }}>{prompt}</h1>
-            <p className="rt-sub" style={{ marginBottom: 30 }}>Facoltativo · {other(me)} non lo vedrà mai</p>
-            <textarea
-              className="rt-textarea"
-              rows={4}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Scrivi liberamente…"
-            />
-            <div style={{ marginTop: 30 }}>
-              <button className="rt-btn" onClick={() => { buzz(); persist(); }} disabled={saving}>
-                {saving ? "Salvataggio…" : "Salva il check-in"}
-              </button>
-              <button className="rt-btn-soft" style={{ marginTop: 10 }} onClick={() => setScreen("checkin")}>
-                Indietro
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ============ DAILY SHARED QUESTION ============ */}
-        {!loading && screen === "dailyq" && (
-          <div className="rt-fade" style={{ paddingTop: 10, textAlign: "center" }}>
-            <p className="rt-cap" style={{ marginBottom: 12 }}>{sharedQuestion.emoji} Domanda del giorno</p>
-            <h1 className="rt-display" style={{ fontSize: 27, marginBottom: 10 }}>{sharedQuestion.text}</h1>
-            <p className="rt-sub" style={{ marginBottom: 30 }}>
-              Risposta privata. Si rivelerà a entrambi solo quando avrete risposto tutti e due.
-            </p>
-            <textarea
-              className="rt-textarea"
-              rows={4}
-              value={dailyAnswerDraft}
-              onChange={(e) => setDailyAnswerDraft(e.target.value)}
-              placeholder="Scrivi la tua risposta…"
-            />
-            <div style={{ marginTop: 30 }}>
-              <button className="rt-btn" onClick={() => { buzz(); submitDailyAnswer(); }} disabled={dailySaving || !dailyAnswerDraft.trim()}>
-                {dailySaving ? "Invio…" : "Invia la risposta"}
-              </button>
-              <button className="rt-btn-soft" style={{ marginTop: 10 }} onClick={() => setScreen("home")}>
-                Indietro
-              </button>
-            </div>
-            <button
-              className="rt-chip"
-              style={{ marginTop: 26 }}
-              onClick={toggleIntimacy}
-            >
-              {intimacyEnabled ? "🔥 Domande sull'intimità: attive" : "🔥 Includi anche domande sull'intimità"}
-            </button>
-          </div>
-        )}
-
-        {/* ============ DONE ============ */}
-        {!loading && screen === "done" && (
-          <div className="rt-fade" style={{ paddingTop: 24, textAlign: "center" }}>
-            {newBadges.length > 0 && (
-              <div
-                className="rt-card rt-pop"
-                style={{ padding: "16px 20px", marginBottom: 24, background: "linear-gradient(135deg, rgba(240,183,164,0.25), rgba(201,184,232,0.25))" }}
-              >
-                <p className="rt-cap" style={{ marginBottom: 8 }}>Nuovo traguardo</p>
-                {newBadges.map((b) => (
-                  <p key={b.id} style={{ fontSize: 15, fontWeight: 650 }}>
-                    {b.emoji}&ensp;{b.title}
-                  </p>
-                ))}
-              </div>
-            )}
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end" }}>
-              <div style={{ marginRight: bothDoneToday ? -30 : 16, transition: "margin 0.7s cubic-bezier(.4,0,.2,1)" }}>
-                <Fuzzy color={PARTNER_COLORS[me]} level={5} size={125} id="done-me" />
-              </div>
-              <div style={{ opacity: status[other(me)] ? 1 : 0.35, transition: "opacity 0.6s ease" }}>
-                <Fuzzy color={PARTNER_COLORS[other(me)]} level={status[other(me)] ? 5 : 3} size={125} id="done-other" float={!!status[other(me)]} />
-              </div>
-            </div>
-            <h1 className="rt-display" style={{ fontSize: 27, marginTop: 26 }}>
-              {bothDoneToday ? "Vi siete\nritrovati, oggi." : `Ora tocca\na ${other(me)}.`}
-            </h1>
-            <p className="rt-sub" style={{ marginTop: 10 }}>
-              {bothDoneToday ? "Il check-in di entrambi è al sicuro." : "Il tuo momento è salvato. La giornata si completa in due."}
-            </p>
-            <button className="rt-btn" style={{ marginTop: 30 }} onClick={() => { buzz(); setScreen("home"); }}>
-              Torna alla home
-            </button>
-          </div>
-        )}
-
-        {/* ============ BADGES ============ */}
-        {!loading && screen === "badges" && (
-          <div className="rt-fade">
-            <button className="rt-chip" style={{ marginBottom: 20 }} onClick={() => setScreen("home")}>← Home</button>
-            <h1 className="rt-display" style={{ fontSize: 28, marginBottom: 6 }}>Traguardi</h1>
-            <p className="rt-sub" style={{ marginBottom: 24 }}>
-              {unlockedBadgeIds(history, myNotes.length, streak).length} di {BADGES.length} sbloccati
-            </p>
-            <div className="rt-stagger" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {BADGES.map((b) => {
-                const unlocked = unlockedBadgeIds(history, myNotes.length, streak).includes(b.id);
-                return (
-                  <div
-                    key={b.id}
-                    className="rt-card"
-                    style={{
-                      padding: "20px 14px",
-                      textAlign: "center",
-                      opacity: unlocked ? 1 : 0.4,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ fontSize: 30, filter: unlocked ? "none" : "grayscale(1)" }}>{b.emoji}</div>
-                    <div style={{ fontWeight: 600, fontSize: 12.5, lineHeight: 1.35, letterSpacing: -0.2 }}>{b.title}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ============ JOURNAL ============ */}
-        {!loading && screen === "journal" && (
-          <div className="rt-fade">
-            <button className="rt-chip" style={{ marginBottom: 20 }} onClick={() => setScreen("home")}>← Home</button>
-            <h1 className="rt-display" style={{ fontSize: 28, marginBottom: 6 }}>I tuoi pensieri</h1>
-            <p className="rt-sub" style={{ marginBottom: 24 }}>Visibili soltanto a te, {me}.</p>
-            {myNotes.length === 0 && (
-              <div className="rt-card" style={{ padding: 30 }}>
-                <p className="rt-empty">Ancora nessuna nota.<br />Il prossimo check-in è una buona occasione.</p>
-              </div>
-            )}
-            <div className="rt-stagger">
-              {myNotes.map((n, i) => (
-                <div key={i} className="rt-card" style={{ padding: "18px 20px", marginBottom: 12, textAlign: "left" }}>
-                  <p className="rt-cap" style={{ marginBottom: 6 }}>{formatShort(n.date)}</p>
-                  {n.question && <p style={{ fontSize: 12.5, fontStyle: "italic", color: "#A29B90", marginBottom: 5 }}>{n.question}</p>}
-                  <p style={{ fontSize: 14, lineHeight: 1.55 }}>{n.note}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-
-  // Aspetta che Firebase/l'autenticazione anonima siano pronti,
-  // poi monta l'app — stesso identico componente di prima.
-  function Boot() {
-    const [ready, setReady] = useState(!!window.storageReady);
-    useEffect(() => {
-      if (window.storageReady) {
-        setReady(true);
-        return;
-      }
-      const onReady = () => setReady(true);
-      window.addEventListener("storage-ready", onReady, { once: true });
-      return () => window.removeEventListener("storage-ready", onReady);
-    }, []);
-    if (!ready) {
-      return (
-        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FBF9F6", color: "#A29B90", fontFamily: "-apple-system, sans-serif", fontSize: 14 }}>
-          Un attimo…
-        </div>
-      );
+      `), React.createElement("div", {
+    className: "rt-col"
+  }, screen === "identity" && React.createElement("div", {
+    className: "rt-fade",
+    style: {
+      paddingTop: 54,
+      textAlign: "center"
     }
-    return <RelationshipTracker />;
+  }, React.createElement("h1", {
+    className: "rt-display",
+    style: {
+      marginBottom: 12
+    }
+  }, "Chi di voi\nè dei due?"), React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      marginBottom: 44
+    }
+  }, "Un minuto al giorno. Insieme."), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 14
+    }
+  }, PARTNERS.map(p => React.createElement("button", {
+    key: p,
+    className: "rt-idcard",
+    onClick: () => {
+      buzz();
+      setMe(p);
+    }
+  }, React.createElement(Fuzzy, {
+    color: PARTNER_COLORS[p],
+    level: 4,
+    size: 100,
+    id: `id-${p}`,
+    float: false,
+    breathe: true
+  }), React.createElement("div", {
+    style: {
+      marginTop: 14,
+      fontWeight: 650,
+      fontSize: 17,
+      letterSpacing: -0.3
+    }
+  }, p)))), React.createElement("button", {
+    className: "rt-chip",
+    style: {
+      marginTop: 36,
+      background: "transparent",
+      color: "#C4BDB2"
+    },
+    onClick: handleResetTap
+  }, resetting ? "Azzeramento…" : resetArmed ? "Tocca di nuovo per confermare" : "Azzera i dati e ricomincia")), loading && React.createElement("div", null, React.createElement("div", {
+    className: "rt-skel",
+    style: {
+      height: 20,
+      width: 150,
+      borderRadius: 8,
+      marginBottom: 8
+    }
+  }), React.createElement("div", {
+    className: "rt-skel",
+    style: {
+      height: 30,
+      width: 200,
+      borderRadius: 10,
+      marginBottom: 24
+    }
+  }), React.createElement("div", {
+    className: "rt-skel",
+    style: {
+      height: 280,
+      borderRadius: 28,
+      marginBottom: 14
+    }
+  }), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 14,
+      marginBottom: 14
+    }
+  }, React.createElement("div", {
+    className: "rt-skel",
+    style: {
+      flex: 1.6,
+      height: 120,
+      borderRadius: 28
+    }
+  }), React.createElement("div", {
+    className: "rt-skel",
+    style: {
+      flex: 1,
+      height: 120,
+      borderRadius: 28
+    }
+  })), React.createElement("div", {
+    className: "rt-skel",
+    style: {
+      height: 110,
+      borderRadius: 28,
+      marginBottom: 14
+    }
+  }), React.createElement("div", {
+    className: "rt-skel",
+    style: {
+      height: 90,
+      borderRadius: 28
+    }
+  })), !loading && screen === "home" && React.createElement("div", {
+    className: "rt-stagger"
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 22
+    }
+  }, React.createElement("div", null, React.createElement("p", {
+    className: "rt-cap"
+  }, new Date().toLocaleDateString("it-IT", {
+    weekday: "long",
+    day: "numeric",
+    month: "long"
+  })), React.createElement("h1", {
+    style: {
+      fontSize: 26,
+      fontWeight: 700,
+      letterSpacing: -0.8,
+      marginTop: 3
+    }
+  }, "Ciao, ", me), presenceLabel(partnerLastSeen, PARTNER_GENDER[other(me)]) && React.createElement("p", {
+    style: {
+      fontSize: 12,
+      color: "#A29B90",
+      marginTop: 3,
+      display: "flex",
+      alignItems: "center",
+      gap: 5
+    }
+  }, React.createElement("span", {
+    style: {
+      width: 7,
+      height: 7,
+      borderRadius: "50%",
+      background: PARTNER_COLORS[other(me)],
+      display: "inline-block"
+    }
+  }), other(me), " ", presenceLabel(partnerLastSeen, PARTNER_GENDER[other(me)]))), React.createElement("button", {
+    className: "rt-chip",
+    onClick: reset
+  }, "Cambia")), React.createElement("div", {
+    className: "rt-card",
+    style: {
+      padding: "30px 24px 26px",
+      textAlign: "center",
+      marginBottom: 14
+    }
+  }, React.createElement("div", {
+    style: {
+      position: "relative",
+      width: 150,
+      margin: "0 auto"
+    }
+  }, bothDoneToday && React.createElement(React.Fragment, null, React.createElement("div", {
+    className: "rt-halo",
+    style: {
+      animationDelay: "0s"
+    }
+  }), React.createElement("div", {
+    className: "rt-halo",
+    style: {
+      animationDelay: "1.1s"
+    }
+  })), React.createElement(Fuzzy, {
+    color: state ? EMO_COLORS[stateLevel - 1] : "#D9CFE8",
+    level: state ? stateLevel : 3,
+    size: 150,
+    id: "home",
+    breathe: true
+  })), React.createElement("p", {
+    className: "rt-cap",
+    style: {
+      marginTop: 16
+    }
+  }, "Il vostro stato"), React.createElement("p", {
+    style: {
+      fontSize: 24,
+      fontWeight: 700,
+      letterSpacing: -0.6,
+      marginTop: 4
+    }
+  }, state ? STATE_WORDS[stateLevel - 1] : "Tutto da scrivere"), state && React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      fontSize: 12,
+      marginTop: 4
+    }
+  }, state.days === 1 ? "sul vostro primo giorno insieme" : `media degli ultimi ${state.days} giorni`), !iAmDoneToday ? React.createElement("button", {
+    className: "rt-btn",
+    style: {
+      marginTop: 20
+    },
+    onClick: () => {
+      buzz();
+      setStep(0);
+      setScreen("checkin");
+    }
+  }, "Fai il check-in di oggi") : React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      marginTop: 14
+    }
+  }, bothDoneToday ? "✓ Oggi vi siete già ritrovati" : `✓ Fatto — ora tocca a ${other(me)}`)), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 14,
+      marginBottom: 14
+    }
+  }, React.createElement("div", {
+    className: "rt-card",
+    style: {
+      flex: 1.6,
+      padding: "20px 18px",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center"
+    }
+  }, React.createElement("p", {
+    className: "rt-cap",
+    style: {
+      marginBottom: 14
+    }
+  }, "La settimana"), React.createElement(WeekStrip, {
+    history: history,
+    onSelect: openDayDetail
+  })), React.createElement("div", {
+    className: "rt-card",
+    style: {
+      flex: 1,
+      padding: "16px 14px",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, React.createElement("p", {
+    className: "rt-cap",
+    style: {
+      marginBottom: 8
+    }
+  }, "Streak"), React.createElement(StreakRing, {
+    streak: streak
+  }))), dayDetail && React.createElement("div", {
+    className: "rt-card rt-pop",
+    style: {
+      padding: "20px 22px",
+      marginBottom: 14,
+      display: "flex",
+      flexDirection: "column",
+      gap: 12
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 34,
+      height: 34,
+      borderRadius: "50%",
+      background: EMO_COLORS[valueToLevel(dayDetail.value) - 1],
+      boxShadow: "inset 0 -2px 4px rgba(0,0,0,0.06)"
+    }
+  }), React.createElement("div", null, React.createElement("p", {
+    className: "rt-cap"
+  }, formatShort(dayDetail.date)), React.createElement("p", {
+    style: {
+      fontSize: 15,
+      fontWeight: 650,
+      letterSpacing: -0.3
+    }
+  }, STATE_WORDS[valueToLevel(dayDetail.value) - 1]))), React.createElement("button", {
+    className: "rt-chip",
+    onClick: () => setDayDetail(null)
+  }, "✕")), dayDetail.answers ? React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, React.createElement("p", {
+    style: {
+      fontSize: 13,
+      fontStyle: "italic",
+      color: "#A29B90"
+    }
+  }, dayDetail.question.emoji, " ", dayDetail.question.text), React.createElement("div", {
+    style: {
+      background: `${PARTNER_COLORS[me]}33`,
+      borderRadius: 16,
+      padding: "10px 14px"
+    }
+  }, React.createElement("p", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: "#8C6B5C",
+      marginBottom: 2
+    }
+  }, "Tu"), React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      lineHeight: 1.45
+    }
+  }, dayDetail.answers[me]?.answer)), React.createElement("div", {
+    style: {
+      background: `${PARTNER_COLORS[other(me)]}33`,
+      borderRadius: 16,
+      padding: "10px 14px",
+      alignSelf: "flex-end",
+      width: "92%"
+    }
+  }, React.createElement("p", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: "#5C7A55",
+      marginBottom: 2
+    }
+  }, other(me)), React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      lineHeight: 1.45
+    }
+  }, dayDetail.answers[other(me)]?.answer))) : React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      fontSize: 12.5
+    }
+  }, "Quel giorno la domanda non è stata rivelata da entrambi.")), React.createElement("div", {
+    className: "rt-card",
+    style: {
+      padding: "20px 22px",
+      marginBottom: 14,
+      display: "flex",
+      flexDirection: "column",
+      gap: 14
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 14,
+      alignItems: "center"
+    }
+  }, React.createElement("div", {
+    style: {
+      minWidth: 44,
+      height: 44,
+      borderRadius: 16,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "linear-gradient(135deg, rgba(240,183,164,0.35), rgba(201,184,232,0.35))",
+      fontSize: 20
+    }
+  }, bothAnsweredDaily ? sharedQuestion.emoji : "❔"), React.createElement("div", null, React.createElement("p", {
+    className: "rt-cap",
+    style: {
+      marginBottom: 3
+    }
+  }, "Domanda del giorno"), React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      lineHeight: 1.45,
+      fontWeight: 500
+    }
+  }, bothAnsweredDaily ? sharedQuestion.text : myDailyAnswer ? "Risposta inviata" : "C'è una domanda per voi due, oggi"))), bothAnsweredDaily ? React.createElement("div", {
+    className: "rt-pop",
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, React.createElement("p", {
+    className: "rt-cap"
+  }, "✨ Rivelato oggi"), React.createElement("div", {
+    style: {
+      background: `${PARTNER_COLORS[me]}33`,
+      borderRadius: 16,
+      padding: "10px 14px"
+    }
+  }, React.createElement("p", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: "#8C6B5C",
+      marginBottom: 2
+    }
+  }, "Tu"), React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      lineHeight: 1.45
+    }
+  }, myDailyAnswer.answer)), React.createElement("div", {
+    style: {
+      background: `${PARTNER_COLORS[other(me)]}33`,
+      borderRadius: 16,
+      padding: "10px 14px",
+      alignSelf: "flex-end",
+      width: "92%"
+    }
+  }, React.createElement("p", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: "#5C7A55",
+      marginBottom: 2
+    }
+  }, other(me)), React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      lineHeight: 1.45
+    }
+  }, otherDailyAnswer.answer))) : myDailyAnswer ? React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      fontSize: 13
+    }
+  }, "La tua risposta è al sicuro. Si rivelerà quando risponderà anche ", other(me), ".") : React.createElement("button", {
+    className: "rt-btn-soft",
+    onClick: () => {
+      buzz();
+      setScreen("dailyq");
+    }
+  }, "Apri")), React.createElement("div", {
+    className: "rt-card",
+    style: {
+      padding: "20px 22px",
+      marginBottom: 14,
+      display: "flex",
+      flexDirection: "column",
+      gap: 12
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 30,
+      height: 30
+    }
+  }, React.createElement(Fuzzy, {
+    color: "#C9B8E8",
+    level: 4,
+    size: 30,
+    id: "ai",
+    float: false
+  })), React.createElement("p", {
+    className: "rt-cap"
+  }, "Il vostro compagno")), insight ? React.createElement("p", {
+    style: {
+      fontSize: 14,
+      lineHeight: 1.6,
+      color: "#5C554E"
+    }
+  }, insight.text) : history.length >= 3 ? React.createElement("button", {
+    className: "rt-btn-soft",
+    onClick: generateInsight,
+    disabled: insightLoading
+  }, insightLoading ? "Sto pensando a voi…" : "Chiedi un pensiero sulla settimana") : React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      fontSize: 13
+    }
+  }, "Dopo qualche giorno di check-in insieme, qui troverete un piccolo pensiero sulla vostra settimana."), insightLoading && React.createElement("div", {
+    className: "rt-shimmer",
+    style: {
+      height: 3,
+      borderRadius: 2,
+      background: "rgba(201,184,232,0.3)"
+    }
+  })), React.createElement("div", {
+    className: "rt-card",
+    style: {
+      padding: "20px 22px",
+      marginBottom: 14,
+      display: "flex",
+      flexDirection: "column",
+      gap: 12
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 30,
+      height: 30,
+      borderRadius: 10,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "linear-gradient(135deg, rgba(175,200,224,0.4), rgba(201,184,232,0.4))",
+      fontSize: 15
+    }
+  }, "📖"), React.createElement("p", {
+    className: "rt-cap"
+  }, "Il racconto del mese")), monthly ? React.createElement("p", {
+    style: {
+      fontSize: 14,
+      lineHeight: 1.65,
+      color: "#5C554E"
+    }
+  }, monthly.text) : history.length >= 10 ? React.createElement("button", {
+    className: "rt-btn-soft",
+    onClick: generateMonthly,
+    disabled: monthlyLoading
+  }, monthlyLoading ? "Sto ripensando al vostro mese…" : `Racconta il nostro ${MONTH_NAMES[new Date().getMonth()]}`) : React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      fontSize: 13
+    }
+  }, "Dopo dieci giornate condivise, qui troverete un piccolo racconto del vostro mese."), monthlyLoading && React.createElement("div", {
+    className: "rt-shimmer",
+    style: {
+      height: 3,
+      borderRadius: 2,
+      background: "rgba(175,200,224,0.35)"
+    }
+  })), React.createElement("div", {
+    className: "rt-card",
+    style: {
+      padding: "20px 22px",
+      marginBottom: 14
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12
+    }
+  }, React.createElement("p", {
+    className: "rt-title",
+    style: {
+      fontSize: 15
+    }
+  }, "Andamento"), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 5
+    }
+  }, [7, 14, 30].map(p => React.createElement("button", {
+    key: p,
+    className: `rt-chip ${period === p ? "on" : ""}`,
+    onClick: () => setPeriod(p)
+  }, p, "g")))), React.createElement("div", {
+    className: "rt-dimrow",
+    style: {
+      marginBottom: 14
+    }
+  }, DIM_OPTIONS.map(d => React.createElement("button", {
+    key: d.key,
+    className: `rt-chip ${chartDim === d.key ? "on" : ""}`,
+    style: chartDim === d.key ? {
+      background: d.color,
+      color: "#4A443E",
+      fontWeight: 650
+    } : {},
+    onClick: () => setChartDim(d.key)
+  }, d.label))), React.createElement(TrendChart, {
+    data: chartData,
+    color: chartDim === "value" ? undefined : selectedDim.color
+  }), selectedDim.inverted && React.createElement("p", {
+    style: {
+      marginTop: 10,
+      fontSize: 11.5,
+      color: "#B5AEA3"
+    }
+  }, "Per lo stress, più bassa è la linea, meglio è."), (() => {
+    const cmp = periodComparison(history, period);
+    if (!cmp || chartDim !== "value") return null;
+    const up = cmp.diff > 0.15;
+    const down = cmp.diff < -0.15;
+    return React.createElement("p", {
+      style: {
+        marginTop: 14,
+        fontSize: 12.5,
+        color: "#8C8579"
+      }
+    }, up ? "Più sereni" : down ? "Un po' più pesanti" : "Stabili", " rispetto ai ", period, " giorni precedenti");
+  })()), (() => {
+    const ws = weeklySummary(history);
+    if (!ws) return null;
+    return React.createElement("div", {
+      className: "rt-card",
+      style: {
+        padding: "20px 22px",
+        marginBottom: 14,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12
+      }
+    }, React.createElement("p", {
+      className: "rt-title",
+      style: {
+        fontSize: 15
+      }
+    }, "La settimana in numeri"), React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 9
+      }
+    }, React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline"
+      }
+    }, React.createElement("span", {
+      className: "rt-sub",
+      style: {
+        fontSize: 13
+      }
+    }, "Check-in completati"), React.createElement("span", {
+      style: {
+        fontWeight: 650,
+        fontSize: 14
+      }
+    }, ws.completed, " su 7")), React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline"
+      }
+    }, React.createElement("span", {
+      className: "rt-sub",
+      style: {
+        fontSize: 13
+      }
+    }, "Punto forte"), React.createElement("span", {
+      style: {
+        fontWeight: 650,
+        fontSize: 14
+      }
+    }, ws.strongest.label)), React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline"
+      }
+    }, React.createElement("span", {
+      className: "rt-sub",
+      style: {
+        fontSize: 13
+      }
+    }, "Da coltivare"), React.createElement("span", {
+      style: {
+        fontWeight: 650,
+        fontSize: 14
+      }
+    }, ws.weakest.label)), ws.direction && React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline"
+      }
+    }, React.createElement("span", {
+      className: "rt-sub",
+      style: {
+        fontSize: 13
+      }
+    }, "Rispetto alla settimana scorsa"), React.createElement("span", {
+      style: {
+        fontWeight: 650,
+        fontSize: 14,
+        color: ws.direction === "up" ? "#7FA86F" : ws.direction === "down" ? "#D08A76" : "#8C8579"
+      }
+    }, ws.direction === "up" ? "In salita ↗" : ws.direction === "down" ? "In discesa ↘" : "Stabile →"))));
+  })(), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 14,
+      alignItems: "stretch"
+    }
+  }, React.createElement("button", {
+    className: "rt-card rt-card-press",
+    onClick: () => setScreen("badges"),
+    style: {
+      flex: 1,
+      padding: "18px 18px",
+      border: "1px solid rgba(255,255,255,0.95)",
+      textAlign: "left",
+      font: "inherit",
+      color: "inherit",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+      gap: 6
+    }
+  }, React.createElement("p", {
+    style: {
+      fontSize: 20
+    }
+  }, unlockedBadgeIds(history, myNotes.length, streak).slice(-2).map(id => BADGES.find(b => b.id === id)?.emoji).join(" ") || "🏅"), React.createElement("p", {
+    className: "rt-title",
+    style: {
+      fontSize: 14
+    }
+  }, "Traguardi"), React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      fontSize: 12
+    }
+  }, unlockedBadgeIds(history, myNotes.length, streak).length, " di ", BADGES.length)), React.createElement("button", {
+    className: "rt-card rt-card-press",
+    onClick: () => setScreen("journal"),
+    style: {
+      flex: 1,
+      padding: "18px 18px",
+      border: "1px solid rgba(255,255,255,0.95)",
+      textAlign: "left",
+      font: "inherit",
+      color: "inherit",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+      gap: 6
+    }
+  }, React.createElement("p", {
+    style: {
+      fontSize: 20
+    }
+  }, "✍️"), React.createElement("p", {
+    className: "rt-title",
+    style: {
+      fontSize: 14
+    }
+  }, "I tuoi pensieri"), React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      fontSize: 12
+    }
+  }, myNotes.length, " note private")))), !loading && screen === "checkin" && scale && React.createElement("div", {
+    className: "rt-fade",
+    key: dim,
+    style: {
+      paddingTop: 10,
+      textAlign: "center"
+    }
+  }, React.createElement("div", {
+    className: "rt-dots",
+    style: {
+      marginBottom: 34
+    }
+  }, STEPS.map((s, i) => React.createElement("div", {
+    key: s,
+    className: `rt-dot ${i <= step ? "on" : ""}`
+  }))), React.createElement("h1", {
+    className: "rt-display",
+    style: {
+      fontSize: 30,
+      marginBottom: 30
+    }
+  }, questionText), React.createElement(Fuzzy, {
+    color: emoColor,
+    level: displayLevel,
+    size: 185,
+    id: dim
+  }), React.createElement("p", {
+    key: level,
+    className: "rt-word-swap",
+    style: {
+      fontSize: 26,
+      fontWeight: 700,
+      letterSpacing: -0.6,
+      color: "#4A443E",
+      marginTop: 22,
+      marginBottom: 34
+    }
+  }, words[level - 1]), React.createElement(MoodSlider, {
+    value: level,
+    onChange: v => setValues(prev => ({
+      ...prev,
+      [dim]: v
+    })),
+    inverted: scale.inverted
+  }), React.createElement("div", {
+    style: {
+      marginTop: 36
+    }
+  }, React.createElement("button", {
+    className: "rt-btn",
+    onClick: () => {
+      buzz();
+      step < STEPS.length - 1 ? setStep(step + 1) : setScreen("note");
+    }
+  }, "Continua"), React.createElement("button", {
+    className: "rt-btn-soft",
+    style: {
+      marginTop: 10
+    },
+    onClick: () => step > 0 ? setStep(step - 1) : setScreen("home")
+  }, "Indietro"))), !loading && screen === "note" && React.createElement("div", {
+    className: "rt-fade",
+    style: {
+      paddingTop: 10,
+      textAlign: "center"
+    }
+  }, React.createElement("div", {
+    className: "rt-dots",
+    style: {
+      marginBottom: 34
+    }
+  }, STEPS.map(s => React.createElement("div", {
+    key: s,
+    className: "rt-dot on"
+  }))), reflectionDay && React.createElement("p", {
+    className: "rt-cap",
+    style: {
+      marginBottom: 12
+    }
+  }, "Domanda del giorno"), React.createElement("h1", {
+    className: "rt-display",
+    style: {
+      fontSize: 27,
+      marginBottom: 10
+    }
+  }, prompt), React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      marginBottom: 30
+    }
+  }, "Facoltativo · ", other(me), " non lo vedrà mai"), React.createElement("textarea", {
+    className: "rt-textarea",
+    rows: 4,
+    value: note,
+    onChange: e => setNote(e.target.value),
+    placeholder: "Scrivi liberamente…"
+  }), React.createElement("div", {
+    style: {
+      marginTop: 30
+    }
+  }, React.createElement("button", {
+    className: "rt-btn",
+    onClick: () => {
+      buzz();
+      persist();
+    },
+    disabled: saving
+  }, saving ? "Salvataggio…" : "Salva il check-in"), React.createElement("button", {
+    className: "rt-btn-soft",
+    style: {
+      marginTop: 10
+    },
+    onClick: () => setScreen("checkin")
+  }, "Indietro"))), !loading && screen === "dailyq" && React.createElement("div", {
+    className: "rt-fade",
+    style: {
+      paddingTop: 10,
+      textAlign: "center"
+    }
+  }, React.createElement("p", {
+    className: "rt-cap",
+    style: {
+      marginBottom: 12
+    }
+  }, sharedQuestion.emoji, " Domanda del giorno"), React.createElement("h1", {
+    className: "rt-display",
+    style: {
+      fontSize: 27,
+      marginBottom: 10
+    }
+  }, sharedQuestion.text), React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      marginBottom: 30
+    }
+  }, "Risposta privata. Si rivelerà a entrambi solo quando avrete risposto tutti e due."), React.createElement("textarea", {
+    className: "rt-textarea",
+    rows: 4,
+    value: dailyAnswerDraft,
+    onChange: e => setDailyAnswerDraft(e.target.value),
+    placeholder: "Scrivi la tua risposta…"
+  }), React.createElement("div", {
+    style: {
+      marginTop: 30
+    }
+  }, React.createElement("button", {
+    className: "rt-btn",
+    onClick: () => {
+      buzz();
+      submitDailyAnswer();
+    },
+    disabled: dailySaving || !dailyAnswerDraft.trim()
+  }, dailySaving ? "Invio…" : "Invia la risposta"), React.createElement("button", {
+    className: "rt-btn-soft",
+    style: {
+      marginTop: 10
+    },
+    onClick: () => setScreen("home")
+  }, "Indietro")), React.createElement("button", {
+    className: "rt-chip",
+    style: {
+      marginTop: 26
+    },
+    onClick: toggleIntimacy
+  }, intimacyEnabled ? "🔥 Domande sull'intimità: attive" : "🔥 Includi anche domande sull'intimità")), !loading && screen === "done" && React.createElement("div", {
+    className: "rt-fade",
+    style: {
+      paddingTop: 24,
+      textAlign: "center"
+    }
+  }, newBadges.length > 0 && React.createElement("div", {
+    className: "rt-card rt-pop",
+    style: {
+      padding: "16px 20px",
+      marginBottom: 24,
+      background: "linear-gradient(135deg, rgba(240,183,164,0.25), rgba(201,184,232,0.25))"
+    }
+  }, React.createElement("p", {
+    className: "rt-cap",
+    style: {
+      marginBottom: 8
+    }
+  }, "Nuovo traguardo"), newBadges.map(b => React.createElement("p", {
+    key: b.id,
+    style: {
+      fontSize: 15,
+      fontWeight: 650
+    }
+  }, b.emoji, "\u2002", b.title))), React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "flex-end"
+    }
+  }, React.createElement("div", {
+    style: {
+      marginRight: bothDoneToday ? -30 : 16,
+      transition: "margin 0.7s cubic-bezier(.4,0,.2,1)"
+    }
+  }, React.createElement(Fuzzy, {
+    color: PARTNER_COLORS[me],
+    level: 5,
+    size: 125,
+    id: "done-me"
+  })), React.createElement("div", {
+    style: {
+      opacity: status[other(me)] ? 1 : 0.35,
+      transition: "opacity 0.6s ease"
+    }
+  }, React.createElement(Fuzzy, {
+    color: PARTNER_COLORS[other(me)],
+    level: status[other(me)] ? 5 : 3,
+    size: 125,
+    id: "done-other",
+    float: !!status[other(me)]
+  }))), React.createElement("h1", {
+    className: "rt-display",
+    style: {
+      fontSize: 27,
+      marginTop: 26
+    }
+  }, bothDoneToday ? "Vi siete\nritrovati, oggi." : `Ora tocca\na ${other(me)}.`), React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      marginTop: 10
+    }
+  }, bothDoneToday ? "Il check-in di entrambi è al sicuro." : "Il tuo momento è salvato. La giornata si completa in due."), React.createElement("button", {
+    className: "rt-btn",
+    style: {
+      marginTop: 30
+    },
+    onClick: () => {
+      buzz();
+      setScreen("home");
+    }
+  }, "Torna alla home")), !loading && screen === "badges" && React.createElement("div", {
+    className: "rt-fade"
+  }, React.createElement("button", {
+    className: "rt-chip",
+    style: {
+      marginBottom: 20
+    },
+    onClick: () => setScreen("home")
+  }, "← Home"), React.createElement("h1", {
+    className: "rt-display",
+    style: {
+      fontSize: 28,
+      marginBottom: 6
+    }
+  }, "Traguardi"), React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      marginBottom: 24
+    }
+  }, unlockedBadgeIds(history, myNotes.length, streak).length, " di ", BADGES.length, " sbloccati"), React.createElement("div", {
+    className: "rt-stagger",
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 12
+    }
+  }, BADGES.map(b => {
+    const unlocked = unlockedBadgeIds(history, myNotes.length, streak).includes(b.id);
+    return React.createElement("div", {
+      key: b.id,
+      className: "rt-card",
+      style: {
+        padding: "20px 14px",
+        textAlign: "center",
+        opacity: unlocked ? 1 : 0.4,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8
+      }
+    }, React.createElement("div", {
+      style: {
+        fontSize: 30,
+        filter: unlocked ? "none" : "grayscale(1)"
+      }
+    }, b.emoji), React.createElement("div", {
+      style: {
+        fontWeight: 600,
+        fontSize: 12.5,
+        lineHeight: 1.35,
+        letterSpacing: -0.2
+      }
+    }, b.title));
+  }))), !loading && screen === "journal" && React.createElement("div", {
+    className: "rt-fade"
+  }, React.createElement("button", {
+    className: "rt-chip",
+    style: {
+      marginBottom: 20
+    },
+    onClick: () => setScreen("home")
+  }, "← Home"), React.createElement("h1", {
+    className: "rt-display",
+    style: {
+      fontSize: 28,
+      marginBottom: 6
+    }
+  }, "I tuoi pensieri"), React.createElement("p", {
+    className: "rt-sub",
+    style: {
+      marginBottom: 24
+    }
+  }, "Visibili soltanto a te, ", me, "."), myNotes.length === 0 && React.createElement("div", {
+    className: "rt-card",
+    style: {
+      padding: 30
+    }
+  }, React.createElement("p", {
+    className: "rt-empty"
+  }, "Ancora nessuna nota.", React.createElement("br", null), "Il prossimo check-in è una buona occasione.")), React.createElement("div", {
+    className: "rt-stagger"
+  }, myNotes.map((n, i) => React.createElement("div", {
+    key: i,
+    className: "rt-card",
+    style: {
+      padding: "18px 20px",
+      marginBottom: 12,
+      textAlign: "left"
+    }
+  }, React.createElement("p", {
+    className: "rt-cap",
+    style: {
+      marginBottom: 6
+    }
+  }, formatShort(n.date)), n.question && React.createElement("p", {
+    style: {
+      fontSize: 12.5,
+      fontStyle: "italic",
+      color: "#A29B90",
+      marginBottom: 5
+    }
+  }, n.question), React.createElement("p", {
+    style: {
+      fontSize: 14,
+      lineHeight: 1.55
+    }
+  }, n.note)))))));
+}
+function Boot() {
+  const [ready, setReady] = useState(!!window.storageReady);
+  useEffect(() => {
+    if (window.storageReady) {
+      setReady(true);
+      return;
+    }
+    const onReady = () => setReady(true);
+    window.addEventListener("storage-ready", onReady, {
+      once: true
+    });
+    return () => window.removeEventListener("storage-ready", onReady);
+  }, []);
+  if (!ready) {
+    return React.createElement("div", {
+      style: {
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#FBF9F6",
+        color: "#A29B90",
+        fontFamily: "-apple-system, sans-serif",
+        fontSize: 14
+      }
+    }, "Un attimo…");
   }
+  return React.createElement(RelationshipTracker, null);
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(Boot, null));
 
-  ReactDOM.createRoot(document.getElementById("root")).render(<Boot />);
-</script>
+    window.__startApp = function () {
+      if (window.__appStarted) return;
+      window.__appStarted = true;
+      ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(RelationshipTracker));
+    };
+    if (window.__firebaseReady) window.__startApp();
+  })();
+  </script>
 </body>
 </html>
