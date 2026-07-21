@@ -1252,7 +1252,7 @@ function RelationshipTracker() {
         .rt-root {
           min-height: 620px;
           display: flex; justify-content: center;
-          padding: 28px 20px 44px;
+          padding: calc(28px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(44px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
           font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', sans-serif;
           color: #4A443E;
           transition: background 0.8s ease;
@@ -1406,7 +1406,7 @@ function RelationshipTracker() {
   }, screen === "identity" && React.createElement("div", {
     className: "rt-fade",
     style: {
-      paddingTop: 54,
+      paddingTop: 80,
       textAlign: "center"
     }
   }, React.createElement("h1", {
@@ -1446,13 +1446,20 @@ function RelationshipTracker() {
       letterSpacing: -0.3
     }
   }, p)))), React.createElement("button", {
-    className: "rt-chip",
+    onClick: handleResetTap,
     style: {
-      marginTop: 36,
-      background: "transparent",
-      color: "#C4BDB2"
-    },
-    onClick: handleResetTap
+      marginTop: 40,
+      background: "none",
+      border: "none",
+      padding: 8,
+      cursor: "pointer",
+      font: "inherit",
+      fontSize: 12.5,
+      color: "#C4BDB2",
+      display: "block",
+      marginLeft: "auto",
+      marginRight: "auto"
+    }
   }, resetting ? "Azzeramento…" : resetArmed ? "Tocca di nuovo per confermare" : "Azzera i dati e ricomincia")), loading && React.createElement("div", null, React.createElement("div", {
     className: "rt-skel",
     style: {
@@ -2162,7 +2169,7 @@ function RelationshipTracker() {
     className: "rt-fade",
     key: dim,
     style: {
-      paddingTop: 10,
+      paddingTop: 28,
       textAlign: "center"
     }
   }, React.createElement("div", {
@@ -2221,7 +2228,7 @@ function RelationshipTracker() {
   }, "Indietro"))), !loading && screen === "note" && React.createElement("div", {
     className: "rt-fade",
     style: {
-      paddingTop: 10,
+      paddingTop: 28,
       textAlign: "center"
     }
   }, React.createElement("div", {
@@ -2274,7 +2281,7 @@ function RelationshipTracker() {
   }, "Indietro"))), !loading && screen === "dailyq" && React.createElement("div", {
     className: "rt-fade",
     style: {
-      paddingTop: 10,
+      paddingTop: 28,
       textAlign: "center"
     }
   }, React.createElement("p", {
